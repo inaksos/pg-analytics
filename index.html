@@ -300,7 +300,7 @@ input[type=range]{width:100%;accent-color:var(--orange);height:4px;border-radius
       Línea de Negocio <span style="color:var(--orange);">· obligatorio para guardar</span>
     </div>
     <select id="bl-select" style="width:100%;background:var(--surface2);border:0.5px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--mono);font-size:13px;cursor:pointer;outline:none;transition:border-color 0.15s;"
-      onchange="selectedBL=this.value;localStorage.setItem('pg_selected_bl',this.value)">
+      onchange="selectedBL=this.value;localStorage.setItem('pg_selected_bl',this.value);enableAnalyzeBtn();">
       <option value="">— Selecciona tu BL —</option>
     </select>
   </div>
@@ -370,7 +370,7 @@ input[type=range]{width:100%;accent-color:var(--orange);height:4px;border-radius
         <button class="export-btn" id="save-btn" onclick="saveAnalysis()" style="display:none;border-color:rgba(29,189,138,0.3);color:#1dbd8a;">💾 Guardar análisis</button>
         <div id="sidebar-bl" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;display:none;">BL: <span id="sidebar-bl-name" style="color:var(--orange);"></span></div>
         <div style="margin-top:8px;">
-          <button class="reset-btn" onclick="resetApp()">← Nueva base</button>
+          <button class="reset-btn" onclick="resetApp()" style="width:100%;padding:9px 12px;font-size:11px;border-color:rgba(74,158,232,0.3);color:#4a9ee8;">🔄 Nuevo análisis</button>
         </div>
       </div>
     </div>
@@ -1110,18 +1110,31 @@ function handleFile(file) {
   if(!file) return;
   if(!file.name.endsWith('.csv')){ showError('El archivo debe ser un CSV.'); return; }
   _lastFileObject = file;
-  showLoading();
   Papa.parse(file, {
     header:true, delimiter:';', skipEmptyLines:true,
     complete: function(results){
       var missing = ['PARENTID','DATE','AGENT','DISPOSITIONCODE'].filter(function(c){return !results.meta.fields.includes(c);});
-      if(missing.length){ showError('Columnas faltantes: '+missing.join(', ')); resetToUpload(); return; }
+      if(missing.length){ showError('Columnas faltantes: '+missing.join(', ')); return; }
+      parsedCurrent = results.data;
+      filenameCurrent = file.name;
       selectedBrand = detectBrand(results.data);
       document.querySelectorAll('.brand-btn').forEach(function(b){b.classList.toggle('active',b.dataset.brand===selectedBrand);});
-      setTimeout(function(){analyzeAndRender(results.data, file.name);}, 300);
+      document.getElementById('file-label-current').textContent = '✓ ' + file.name;
+      document.getElementById('drop-zone').style.borderColor = 'var(--orange)';
+      document.getElementById('error-msg').style.display = 'none';
+      enableAnalyzeBtn();
     },
-    error: function(){showError('Error leyendo el archivo.'); resetToUpload();}
+    error: function(){showError('Error leyendo el archivo.');}
   });
+}
+
+function enableAnalyzeBtn() {
+  var btn = document.getElementById('start-btn');
+  var ready = parsedCurrent && selectedBL;
+  btn.style.opacity = ready ? '1' : '0.4';
+  btn.style.pointerEvents = ready ? 'auto' : 'none';
+  if(parsedCurrent && !selectedBL) showError('Selecciona tu Línea de Negocio para continuar.');
+  if(ready) document.getElementById('error-msg').style.display = 'none';
 }
 
 function showLoading() {
@@ -1592,15 +1605,13 @@ function analyzeAndRender(rows, filename) {
       repResults:         repResults
     };
 
-    // Reveal save button if a BL is selected
-    if (selectedBL) {
-      var sbtn = document.getElementById('save-btn');
-      if (sbtn) { sbtn.style.display=''; sbtn.textContent='💾 Guardar análisis'; sbtn.style.pointerEvents=''; sbtn.style.borderColor='rgba(29,189,138,0.3)'; sbtn.style.color='#1dbd8a'; }
-      var sbl = document.getElementById('sidebar-bl');
-      if (sbl) sbl.style.display = '';
-      var sbln = document.getElementById('sidebar-bl-name');
-      if (sbln) sbln.textContent = selectedBL;
-    }
+    // Always reveal save button after analysis
+    var sbtn = document.getElementById('save-btn');
+    if (sbtn) { sbtn.style.display=''; sbtn.textContent='💾 Guardar análisis'; sbtn.style.pointerEvents=''; sbtn.style.borderColor='rgba(29,189,138,0.3)'; sbtn.style.color='#1dbd8a'; }
+    var sbl = document.getElementById('sidebar-bl');
+    if (sbl) sbl.style.display = selectedBL ? '' : 'none';
+    var sbln = document.getElementById('sidebar-bl-name');
+    if (sbln) sbln.textContent = selectedBL || '(sin BL)';
   },500);
 }
 
@@ -1642,6 +1653,7 @@ function parsePrevFile(file) {
 
 function startAnalysis() {
   if(!parsedCurrent) return;
+  if(!selectedBL){ showError('Selecciona tu Línea de Negocio antes de analizar.'); return; }
   showLoading();
   setTimeout(function(){analyzeAndRender(parsedCurrent, filenameCurrent);}, 300);
 }
