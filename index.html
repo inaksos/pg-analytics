@@ -1,0 +1,2694 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PG Analytics — Analizador & Forecast</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d0f14;--surface:#151820;--surface2:#1c2030;--border:rgba(255,255,255,0.07);--text:#f0f2f7;--muted:#6b7280;--orange:#E8581A;--orange2:#F28C42;--orange3:#F0A96B;--gray:#888780;--font:'Sora',sans-serif;--mono:'DM Mono',monospace;--sidebar:220px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;min-height:100vh}
+#upload-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem}
+.upload-logo{margin-bottom:2.5rem;text-align:center}.upload-logo img{height:56px;margin-bottom:0.5rem}
+.upload-logo .tag{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--orange);text-transform:uppercase}
+.upload-title{font-size:34px;font-weight:700;letter-spacing:-1px;text-align:center;margin-bottom:0.75rem;line-height:1.2}
+.upload-sub{font-size:14px;color:var(--muted);text-align:center;margin-bottom:3rem;max-width:420px}
+.drop-zone{width:100%;max-width:520px;border:1.5px dashed rgba(255,255,255,0.15);border-radius:16px;padding:3rem 2rem;text-align:center;cursor:pointer;transition:all 0.2s;background:rgba(255,255,255,0.02)}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--orange);background:rgba(232,88,26,0.04)}
+.drop-icon{font-size:36px;margin-bottom:1rem}.drop-text{font-size:16px;font-weight:600;margin-bottom:0.5rem}
+.drop-hint{font-size:12px;color:var(--muted);font-family:var(--mono)}
+#file-input{display:none}
+.brand-select{margin-top:2rem;display:flex;gap:12px}
+.brand-btn{padding:8px 20px;border-radius:20px;border:0.5px solid var(--border);background:transparent;color:var(--muted);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.15s;text-transform:uppercase;letter-spacing:0.5px}
+.brand-btn.active{border-color:var(--orange);color:var(--orange);background:rgba(232,88,26,0.08)}
+.reqs{margin-top:2.5rem;max-width:520px;font-size:12px;color:var(--muted);text-align:center;line-height:1.8;font-family:var(--mono)}.reqs span{color:rgba(240,242,247,0.5)}
+.error-msg{background:rgba(232,88,26,0.1);border:0.5px solid rgba(232,88,26,0.3);border-radius:8px;padding:0.75rem 1rem;font-size:13px;color:var(--orange);margin-top:1rem;display:none}
+#loading-screen{display:none;min-height:100vh;align-items:center;justify-content:center;flex-direction:column;gap:1.5rem}
+.loading-bar-track{width:320px;height:3px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden}
+.loading-bar-fill{height:100%;background:var(--orange);border-radius:2px;width:0%;transition:width 0.3s ease}
+.loading-label{font-family:var(--mono);font-size:12px;color:var(--muted)}
+#dashboard{display:none;min-height:100vh}
+.dash-layout{display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar);background:var(--surface);border-right:0.5px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:10}
+.sidebar-logo{padding:1.5rem 1.25rem 1rem;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px}
+.sidebar-logo img{height:28px}.sidebar-logo .brand-name{font-size:12px;font-weight:600;color:var(--text);line-height:1.2}
+.sidebar-logo .brand-tag{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:var(--orange);text-transform:uppercase;line-height:1.2}
+.sidebar-nav{padding:1rem 0;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:0.65rem 1.25rem;cursor:pointer;transition:all 0.15s;border-left:2px solid transparent;color:var(--muted)}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,0.03)}
+.nav-item.active{color:var(--orange);border-left-color:var(--orange);background:rgba(232,88,26,0.06)}
+.nav-icon{font-size:15px;width:18px;text-align:center;flex-shrink:0}.nav-label{font-size:12px;font-weight:500}
+.sidebar-footer{padding:1rem 1.25rem;border-top:0.5px solid var(--border)}
+.reset-btn{width:100%;font-family:var(--mono);font-size:10px;padding:7px 12px;border-radius:8px;border:0.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;text-align:center;letter-spacing:0.5px}
+.reset-btn:hover{border-color:var(--orange);color:var(--orange)}
+.sidebar-file{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px;word-break:break-all;line-height:1.4}
+.main-content{margin-left:var(--sidebar);flex:1;padding:2rem}
+.section{display:none}.section.active{display:block}
+.section-header{margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:0.5px solid var(--border)}
+.section-title{font-size:20px;font-weight:700;letter-spacing:-0.3px}
+.section-sub{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.5rem}
+.mc{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;position:relative;overflow:hidden}
+.mc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:12px 12px 0 0}
+.mc.o1::before{background:var(--orange)}.mc.o2::before{background:var(--orange2)}.mc.o3::before{background:var(--orange3)}.mc.gr::before{background:var(--gray)}
+.mc-label{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
+.mc-val{font-size:26px;font-weight:700;letter-spacing:-1px;line-height:1;margin-bottom:4px}.mc-sub{font-size:12px;color:var(--muted)}
+.mc.o1 .mc-val{color:var(--orange)}.mc.o2 .mc-val{color:var(--orange2)}.mc.o3 .mc-val{color:var(--orange3)}.mc.gr .mc-val{color:var(--gray)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem}
+.card-title{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1.25rem}
+.cat-bar{margin-bottom:1rem}.cat-bar-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.cat-name{font-size:13px;font-weight:600}.cat-meta{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.track{height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden}.fill{height:100%;border-radius:3px;transition:width 0.8s cubic-bezier(0.4,0,0.2,1)}
+.detail-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)}.detail-row:last-child{border-bottom:none}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}.detail-label{flex:1;font-size:12px;color:var(--muted)}
+.detail-n{font-family:var(--mono);font-size:13px;color:var(--text);font-weight:500;min-width:55px;text-align:right}
+.detail-pct{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:40px;text-align:right}
+.detail-track{width:80px;height:4px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden}.detail-fill{height:100%;border-radius:2px}
+.alert-card{border-radius:12px;padding:1.25rem 1.5rem;display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}
+.alert-text{font-size:13px;color:rgba(240,242,247,0.75);line-height:1.7}.alert-text strong{font-weight:600}
+.cov-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+.cov-card{background:var(--surface2);border-radius:10px;padding:0.85rem 1rem;border:0.5px solid var(--border)}
+.cov-label{font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:5px}.cov-val{font-size:22px;font-weight:600;margin-bottom:2px}.cov-sub{font-size:11px;color:var(--muted);line-height:1.4}
+.weekly-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:12px;overflow:hidden;border:0.5px solid var(--border);margin-bottom:1.5rem}
+.weekly-table thead tr{border-bottom:0.5px solid var(--border)}
+.weekly-table th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:0.75rem 1rem;text-align:left;font-weight:400}
+.weekly-table th.r,.weekly-table td.r{text-align:right;font-family:var(--mono);font-size:12px}
+.weekly-table td{padding:0.65rem 1rem;font-size:13px;border-bottom:0.5px solid rgba(255,255,255,0.04)}
+.weekly-table td.wk{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.weekly-table tr:last-child td{border-bottom:none}.weekly-table tr:hover td{background:rgba(255,255,255,0.02)}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-family:var(--mono);font-size:11px}
+.pill-g{background:rgba(29,189,138,0.1);color:#1dbd8a}.pill-a{background:rgba(232,184,74,0.1);color:#e8b84a}.pill-r{background:rgba(232,88,26,0.1);color:var(--orange)}
+.footer-bar{margin-top:2rem;padding-top:1rem;border-top:0.5px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+.tooltip-wrap{position:relative;display:inline-block}
+.tooltip-wrap .tooltip-box{visibility:hidden;opacity:0;position:absolute;left:0;top:calc(100% + 6px);z-index:100;background:#1c2030;border:0.5px solid rgba(255,255,255,0.12);border-radius:8px;padding:0.6rem 0.85rem;font-size:11px;font-family:var(--mono);color:var(--muted);white-space:nowrap;pointer-events:none;transition:opacity 0.15s;box-shadow:0 4px 16px rgba(0,0,0,0.4);max-width:320px;white-space:normal;line-height:1.6}
+.tooltip-wrap:hover .tooltip-box{visibility:visible;opacity:1}
+.tooltip-icon{font-size:10px;color:var(--muted);margin-left:5px;cursor:default;vertical-align:middle}
+.pill-up{background:rgba(29,189,138,0.1);color:#1dbd8a}
+.demora-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:1.5rem;margin-top:1.5rem}
+.demora-section-label{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;margin-top:1.5rem;padding-top:1.5rem;border-top:0.5px solid var(--border)}
+.pill-down{background:rgba(232,88,26,0.1);color:var(--orange)}
+.pill-neutral{background:rgba(136,135,128,0.1);color:var(--gray)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.export-btn{display:flex;align-items:center;gap:6px;width:100%;font-family:var(--mono);font-size:10px;padding:7px 12px;border-radius:8px;border:0.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;text-align:left;letter-spacing:0.5px;margin-bottom:6px}
+.export-btn:hover{border-color:var(--orange);color:var(--orange)}
+.export-btn:last-child{margin-bottom:0}
+.sidebar-section-title{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:rgba(107,114,128,0.6);padding:0 1.25rem;margin-bottom:6px;margin-top:1rem}
+@media print{
+  .sidebar{display:none!important}
+  .main-content{margin-left:0!important;padding:1rem!important}
+  .section{display:block!important}
+  .section:not(.active){display:none!important}
+  body{background:white!important;color:#111!important}
+  .mc,.card,.cov-card,.weekly-table,.alert-card{border:1px solid #ddd!important;background:white!important}
+  .mc-val,.cat-name,.section-title{color:#111!important}
+  .mc-label,.cat-meta,.muted,.detail-label,.section-sub{color:#555!important}
+  .fill{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .conclusions-card{border:1px solid #ddd!important;background:white!important}
+}
+.conclusions-wrap{margin-top:1.5rem;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.conclusions-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem}
+.conclusions-title{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:1rem}
+.conclusion-item{display:flex;gap:10px;margin-bottom:0.85rem;font-size:13px;color:rgba(240,242,247,0.8);line-height:1.6}
+.conclusion-item:last-child{margin-bottom:0}
+.conclusion-num{font-family:var(--mono);font-size:11px;font-weight:500;flex-shrink:0;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.conclusion-num.insight{background:rgba(74,158,232,0.15);color:#4a9ee8}
+.conclusion-num.action{background:rgba(29,189,138,0.15);color:#1dbd8a}
+
+/* Forecast additional styles */
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f14;--surface:#151820;--surface2:#1c2030;
+  --border:rgba(255,255,255,0.07);--text:#f0f2f7;--muted:#6b7280;
+  --orange:#E8581A;--orange2:#F28C42;--green:#1dbd8a;
+  --blue:#4a9ee8;--amber:#e8b84a;--gray:#888780;
+  --font:'Sora',sans-serif;--mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;padding:2rem;max-width:1200px;margin:0 auto}
+
+/* HEADER */
+.header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:0.5px solid var(--border)}
+.header img{height:36px}
+.h1{font-size:24px;font-weight:700;letter-spacing:-0.5px}
+.sub{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:4px}
+
+/* INPUTS */
+.input-section{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem}
+.input-section-title{font-size:13px;font-weight:600;margin-bottom:1.25rem;display:flex;align-items:center;gap:8px}
+.input-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.input-grid-rates{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.input-item{display:flex;flex-direction:column;gap:5px}
+.input-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)}
+.input-sub{font-family:var(--mono);font-size:10px;color:rgba(107,114,128,0.6)}
+.input-field{background:var(--surface2);border:0.5px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:14px;font-weight:500;width:100%;transition:border-color 0.15s;outline:none}
+.input-field:focus{border-color:var(--orange)}
+.input-field.rate{font-size:13px}
+.input-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.rate-aa{border-color:rgba(74,158,232,0.3)}
+.rate-aa:focus{border-color:var(--blue)}
+.rate-real{border-color:rgba(232,88,26,0.3)}
+.rate-real:focus{border-color:var(--orange)}
+.rate-labels{display:flex;gap:6px;margin-bottom:3px}
+.rate-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.5px;flex:1;text-align:center}
+.update-btn{background:var(--orange);color:white;border:none;padding:10px 24px;border-radius:8px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;margin-top:1rem}
+.update-btn:hover{background:#c94d12}
+.rate-var{font-family:var(--mono);font-size:11px;text-align:center;margin-top:3px;font-weight:500}
+
+/* METRICS */
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.5rem}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:1.5rem}
+.mc{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;position:relative;overflow:hidden}
+.mc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.mc.o::before{background:var(--orange)}.mc.g::before{background:var(--green)}.mc.b::before{background:var(--blue)}.mc.a::before{background:var(--amber)}
+.mc-label{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
+.mc-val{font-size:26px;font-weight:700;letter-spacing:-1px;line-height:1;margin-bottom:4px}
+.mc-sub{font-size:12px;color:var(--muted)}
+.mc.o .mc-val{color:var(--orange)}.mc.g .mc-val{color:var(--green)}.mc.b .mc-val{color:var(--blue)}.mc.a .mc-val{color:var(--amber)}
+.section-label{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;margin-top:1.5rem;padding-top:1.5rem;border-top:0.5px solid var(--border)}
+.card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem}
+.card-title{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1.25rem}
+
+/* FUNNEL RATES DISPLAY */
+.funnel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.5rem}
+.funnel-card{background:var(--surface2);border-radius:10px;padding:0.85rem 1rem;border:0.5px solid var(--border)}
+.funnel-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px}
+.funnel-row{display:flex;justify-content:space-between;font-size:12px;font-family:var(--mono);margin-bottom:3px}
+.funnel-aa{color:var(--blue)}.funnel-real{color:var(--orange)}
+.funnel-var{font-size:13px;font-weight:700;margin-top:6px}
+
+/* SLIDERS */
+.slider-section{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem}
+.slider-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem}
+.slider-title{font-size:13px;font-weight:600}
+.slider-reset{font-family:var(--mono);font-size:10px;padding:5px 12px;border-radius:6px;border:0.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s}
+.slider-reset:hover{border-color:var(--orange);color:var(--orange)}
+.sliders-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.slider-item{display:flex;flex-direction:column;gap:6px}
+.slider-label{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.slider-val{color:var(--orange);font-family:var(--mono);font-size:12px;font-weight:500;min-width:50px;text-align:right}
+input[type=range]{width:100%;accent-color:var(--orange);height:4px;border-radius:2px;cursor:pointer}
+.slider-note{font-size:11px;color:rgba(107,114,128,0.6);font-family:var(--mono)}
+.slider-chain{background:var(--surface2);border-radius:6px;padding:6px 10px;font-size:11px;color:rgba(240,242,247,0.6);line-height:1.5;margin-top:2px;border-left:2px solid var(--orange)}
+.slider-chain strong{color:var(--orange2)}
+
+/* SCENARIOS */
+.scenario-card{border-radius:12px;padding:1.25rem 1.5rem;border:0.5px solid}
+.sc-sin{background:rgba(232,88,26,0.06);border-color:rgba(232,88,26,0.25)}
+.sc-mod{background:rgba(232,184,74,0.06);border-color:rgba(232,184,74,0.25)}
+.sc-opt{background:rgba(29,189,138,0.06);border-color:rgba(29,189,138,0.25)}
+.sc-badge{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;font-weight:500}
+.sc-sin .sc-badge{color:var(--orange)}.sc-mod .sc-badge{color:var(--amber)}.sc-opt .sc-badge{color:var(--green)}
+.sc-title{font-size:13px;color:var(--muted);margin-bottom:0.75rem}
+.sc-num{font-size:40px;font-weight:700;letter-spacing:-2px;margin-bottom:4px;line-height:1}
+.sc-sin .sc-num{color:var(--orange)}.sc-mod .sc-num{color:var(--amber)}.sc-opt .sc-num{color:var(--green)}
+.sc-meta-text{font-size:12px;color:var(--muted);margin-bottom:1rem}
+.sc-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid rgba(255,255,255,0.05);font-size:12px}
+.sc-row:last-child{border-bottom:none}
+.sc-row-label{color:var(--muted)}.sc-row-val{font-family:var(--mono);font-weight:500}
+.progress-bar{height:5px;border-radius:3px;background:rgba(255,255,255,0.05);margin-top:10px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width 0.5s ease}
+.progress-pct{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;text-align:right}
+
+/* CHART */
+.chart-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem}
+.chart-legend{display:flex;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.legend-line{width:20px;height:2px;border-radius:1px}
+
+/* CONCLUSIONS */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:1.5rem}
+.conclusion-item{display:flex;gap:10px;margin-bottom:0.85rem;font-size:13px;color:rgba(240,242,247,0.8);line-height:1.6}
+.conclusion-item:last-child{margin-bottom:0}
+.c-num{font-family:var(--mono);font-size:11px;font-weight:500;flex-shrink:0;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.c-blue{background:rgba(74,158,232,0.15);color:var(--blue)}.c-green{background:rgba(29,189,138,0.15);color:var(--green)}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-family:var(--mono);font-size:11px}
+.pill-up{background:rgba(29,189,138,0.1);color:var(--green)}.pill-down{background:rgba(232,88,26,0.1);color:var(--orange)}
+.toggle-btn{display:flex;align-items:center;gap:8px;background:transparent;border:0.5px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--muted);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;transition:all 0.15s;margin-bottom:1rem}
+.toggle-btn:hover{border-color:var(--orange);color:var(--orange)}
+.toggle-btn .arrow{transition:transform 0.2s;font-size:12px}
+.toggle-btn.collapsed .arrow{transform:rotate(-90deg)}
+.input-collapsible{overflow:hidden;transition:max-height 0.3s ease,opacity 0.3s ease;max-height:600px;opacity:1}
+.input-collapsible.hidden{max-height:0;opacity:0}
+.footer{margin-top:2rem;padding-top:1rem;border-top:0.5px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+
+#forecast-screen{padding:2rem;max-width:1200px;margin:0 auto}
+.sc-beast{background:linear-gradient(135deg,rgba(74,158,232,0.08),rgba(29,189,138,0.08));border-color:rgba(74,158,232,0.4)!important;}
+.sc-beast .sc-badge{color:#4a9ee8}
+.sc-beast .sc-num{color:#4a9ee8}
+.beast-target-btn{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;border:0.5px solid rgba(74,158,232,0.3);background:transparent;color:rgba(74,158,232,0.6);cursor:pointer;transition:all 0.15s;}
+.beast-target-btn:hover{border-color:#4a9ee8;color:#4a9ee8;}
+.active-beast{background:rgba(74,158,232,0.15);border-color:#4a9ee8;color:#4a9ee8;}
+.beast-label{font-size:10px;font-family:var(--mono);background:rgba(74,158,232,0.15);color:#4a9ee8;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<div id="upload-screen">
+  <div class="upload-logo">
+    <img src="data:image/png;base64,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" alt="Laureate">
+    <div class="tag">PG Analytics</div>
+  </div>
+  <h1 class="upload-title">Analizador de<br>Conversaciones PG</h1>
+  <p class="upload-sub">Sube tu base de conversaciones y obtén el análisis completo en segundos.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:760px;margin-bottom:1rem;">
+    <!-- CSV actual -->
+    <div>
+      <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--orange);margin-bottom:8px;">CSV Actual <span style="color:var(--muted);">· obligatorio</span></div>
+      <div class="drop-zone" id="drop-zone" style="padding:1.5rem 1rem;">
+        <div class="drop-icon" style="font-size:28px;">📂</div>
+        <div class="drop-text" style="font-size:14px;">Año actual</div>
+        <div class="drop-hint">arrastra o haz clic</div>
+        <input type="file" id="file-input" accept=".csv">
+      </div>
+      <div id="file-label-current" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;min-height:18px;text-align:center;"></div>
+    </div>
+
+    <!-- CSV año anterior -->
+    <div>
+      <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">CSV Año Anterior <span style="color:rgba(107,114,128,0.6);">· opcional</span></div>
+      <div class="drop-zone" id="drop-zone-prev" style="padding:1.5rem 1rem;border-color:rgba(255,255,255,0.08);">
+        <div class="drop-icon" style="font-size:28px;">📁</div>
+        <div class="drop-text" style="font-size:14px;color:var(--muted);">Año anterior</div>
+        <div class="drop-hint">para comparativa YoY</div>
+        <input type="file" id="file-input-prev" accept=".csv">
+      </div>
+      <div id="file-label-prev" style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;min-height:18px;text-align:center;"></div>
+    </div>
+  </div>
+
+  <div style="background:rgba(255,255,255,0.03);border:0.5px solid var(--border);border-radius:10px;padding:0.75rem 1.25rem;max-width:760px;width:100%;font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:1.5rem;font-family:var(--mono);">
+    📅 Si subes ambas bases, el análisis comparativo usará automáticamente el <strong style="color:var(--text);">periodo equivalente</strong> de cada año — mismo rango de días para que la comparación sea justa. El rango exacto se mostrará en el dashboard.
+  </div>
+
+  <div class="brand-select">
+    <button class="brand-btn active" data-brand="UVM">UVM</button>
+    <button class="brand-btn" data-brand="UNITEC">UNITEC</button>
+    <button class="brand-btn" data-brand="OTRA">Otra marca</button>
+  </div>
+
+  <!-- BL Selector -->
+  <div style="margin-top:1.5rem;width:100%;max-width:520px;">
+    <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">
+      Línea de Negocio <span style="color:var(--orange);">· obligatorio para guardar</span>
+    </div>
+    <select id="bl-select" style="width:100%;background:var(--surface2);border:0.5px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--mono);font-size:13px;cursor:pointer;outline:none;transition:border-color 0.15s;"
+      onchange="selectedBL=this.value;localStorage.setItem('pg_selected_bl',this.value)">
+      <option value="">— Selecciona tu BL —</option>
+    </select>
+  </div>
+
+  <div class="reqs">Columnas requeridas: <span>PARENTID · DATE · AGENT · DISPOSITIONCODE · ORIGIN</span></div>
+  <div class="error-msg" id="error-msg"></div>
+  <div style="margin-top:1.5rem;">
+    <button id="start-btn" onclick="startAnalysis()" style="background:var(--orange);color:white;border:none;padding:12px 32px;border-radius:8px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;opacity:0.4;pointer-events:none;transition:all 0.2s;">Analizar →</button>
+  </div>
+</div>
+</div>
+
+<div id="loading-screen">
+  <div class="loading-label" id="loading-label">Leyendo archivo...</div>
+  <div class="loading-bar-track"><div class="loading-bar-fill" id="loading-bar"></div></div>
+</div>
+
+<div id="dashboard">
+  <div class="dash-layout">
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <img src="data:image/png;base64,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" alt="Laureate">
+        <div>
+          <div class="brand-name" id="sidebar-brand">PG Analytics</div>
+          <div class="brand-tag" id="sidebar-file-tag">—</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-item active" id="nav-stoppers" onclick="showSection('stoppers',this)">
+          <span class="nav-icon">🛑</span><span class="nav-label">Stoppers</span>
+        </div>
+        <div class="nav-item" id="nav-esfuerzo" onclick="showSection('esfuerzo',this)">
+          <span class="nav-icon">⚡</span><span class="nav-label">Esfuerzo de asesores</span>
+        </div>
+        <div class="nav-item" id="nav-tiempos" onclick="showSection('tiempos',this)">
+          <span class="nav-icon">⏱</span><span class="nav-label">Tiempos de respuesta</span>
+        </div>
+        <div class="nav-item" id="nav-repeticion" onclick="showSection('repeticion',this)">
+          <span class="nav-icon">🔁</span><span class="nav-label">Repetición bot→asesor</span>
+        </div>
+        <div class="nav-item" id="nav-yoy" onclick="showSection('yoy',this)">
+          <span class="nav-icon">📊</span><span class="nav-label">Comparativa YoY</span>
+        </div>
+        <div style="margin-top:0.5rem;border-top:0.5px solid var(--border);padding-top:0.5rem;">
+          <div class="nav-item" id="nav-historial" onclick="showSection('historial',this);renderHistory();">
+            <span class="nav-icon">📁</span><span class="nav-label">Historial</span>
+          </div>
+          <div class="nav-item" id="nav-tendencias" onclick="showSection('tendencias',this);renderTrends();">
+            <span class="nav-icon">📈</span><span class="nav-label">Tendencias</span>
+          </div>
+          <div class="nav-item" id="nav-overview" onclick="showSection('overview',this);renderOverview();">
+            <span class="nav-icon">🏢</span><span class="nav-label">Vista general</span>
+          </div>
+        </div>
+        <div style="padding:1rem 1.25rem 0;margin-top:0.5rem;border-top:0.5px solid var(--border);">
+          <button onclick="showForecast()" style="width:100%;background:rgba(29,189,138,0.1);border:0.5px solid rgba(29,189,138,0.3);border-radius:8px;padding:9px 12px;color:#1dbd8a;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;transition:all 0.15s;">
+            🔮 Abrir Forecast →
+          </button>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-file" id="sidebar-filename"></div>
+        <div class="sidebar-section-title">Exportar</div>
+        <button class="export-btn" onclick="exportPDF()">🖨 Imprimir / PDF</button>
+        <button class="export-btn" onclick="exportHTML()">💾 Guardar HTML</button>
+        <button class="export-btn" onclick="shareLink()">🔗 Copiar enlace público</button>
+        <button class="export-btn" id="save-btn" onclick="saveAnalysis()" style="display:none;border-color:rgba(29,189,138,0.3);color:#1dbd8a;">💾 Guardar análisis</button>
+        <div id="sidebar-bl" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;display:none;">BL: <span id="sidebar-bl-name" style="color:var(--orange);"></span></div>
+        <div style="margin-top:8px;">
+          <button class="reset-btn" onclick="resetApp()">← Nueva base</button>
+        </div>
+      </div>
+    </div>
+    <div class="main-content">
+      <div class="section active" id="sec-stoppers">
+        <div class="section-header"><div class="section-title">Stoppers de inscripción</div><div class="section-sub" id="sub-stoppers"></div></div>
+        <div class="metrics-grid" id="metrics-stoppers"></div>
+        <div class="alert-card" id="alert-demora" style="background:rgba(232,88,26,0.06);border:0.5px solid rgba(232,88,26,0.25);"></div>
+        <div class="grid2">
+          <div class="card"><div class="card-title">Por categoría</div><div id="stoppers-bars"></div></div>
+          <div class="card"><div class="card-title">Desglose por código</div><div id="stoppers-detail"></div></div>
+        </div>
+        <div id="conclusions-stoppers"></div>
+      </div>
+      <div class="section" id="sec-esfuerzo">
+        <div class="section-header"><div class="section-title">Esfuerzo de asesores</div><div class="section-sub" id="sub-esfuerzo"></div></div>
+        <div class="metrics-grid" id="metrics-esfuerzo"></div>
+        <div style="margin-bottom:1.5rem;">
+          <p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;">Cobertura de conversaciones</p>
+          <div class="cov-grid" id="cov-grid"></div>
+          <div id="cov-alert"></div>
+        </div>
+        <div class="grid2">
+          <div class="card"><div class="card-title">¿A dónde va el esfuerzo?</div><div id="effort-bars"></div></div>
+          <div class="card"><div class="card-title">Velocidad por resultado</div><div id="speed-detail"></div><div id="speed-insight"></div></div>
+        </div>
+        <div id="final-insight" style="border-radius:12px;padding:1.25rem 1.5rem;margin-top:0;"></div>
+        <div id="demora-detail"></div>
+        <div id="conclusions-esfuerzo"></div>
+      </div>
+      <div class="section" id="sec-tiempos">
+        <div class="section-header"><div class="section-title">Tiempos de respuesta</div><div class="section-sub" id="sub-tiempos"></div></div>
+
+        <!-- Métricas globales -->
+        <div style="margin-bottom:0.5rem;"><p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;">Resumen global</p></div>
+        <div class="metrics-grid" id="metrics-tiempos"></div>
+
+        <!-- Contexto -->
+        <div id="tiempos-context" style="margin-bottom:1.5rem;"></div>
+
+        <!-- Tabla por semana -->
+        <div style="margin-bottom:0.5rem;"><p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;">Por semana</p></div>
+        <div id="weekly-table-wrap"></div>
+
+        <!-- Tabla por hora -->
+        <div style="margin-bottom:0.5rem;"><p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;">Por hora del día</p></div>
+        <div id="hourly-table-wrap"></div>
+
+        <div id="tiempos-insight"></div>
+        <div id="conclusions-tiempos"></div>
+      </div>
+      <div class="section" id="sec-repeticion">
+        <div class="section-header">
+          <div class="section-title">Repetición bot → asesor</div>
+          <div class="section-sub" id="sub-repeticion"></div>
+        </div>
+
+        <!-- Nota metodológica -->
+        <div style="background:rgba(232,184,74,0.06);border:0.5px solid rgba(232,184,74,0.25);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;gap:12px;align-items:flex-start;">
+          <div style="font-size:18px;flex-shrink:0;margin-top:1px;">⚠</div>
+          <div style="font-size:13px;color:rgba(240,242,247,0.75);line-height:1.7;">
+            <strong style="color:#e8b84a;">Estimación aproximada — confianza ~65%.</strong> Este análisis detecta si el asesor repite temas que el bot ya cubrió usando coincidencia de palabras clave por categoría. Para mayor precisión se requiere análisis semántico con IA, que evalúa parafraseo y contexto real de cada conversación — actualmente en desarrollo.
+          </div>
+        </div>
+
+        <!-- Métricas -->
+        <div class="metrics-grid" id="metrics-repeticion"></div>
+
+        <!-- Tabla por categoría -->
+        <div style="margin-bottom:0.5rem;"><p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;">Repetición estimada por tema</p></div>
+        <div id="repeticion-table-wrap"></div>
+
+        <!-- Ejemplos -->
+        <div style="margin-bottom:0.5rem;margin-top:1.5rem;"><p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;">¿Cómo se define cada tema?</p></div>
+        <div id="repeticion-keywords"></div>
+
+        <div id="repeticion-insight"></div>
+        <div id="conclusions-repeticion"></div>
+      </div>
+
+      <div class="section" id="sec-yoy">
+        <div class="section-header">
+          <div class="section-title">Comparativa año a año</div>
+          <div class="section-sub" id="sub-yoy"></div>
+        </div>
+        <div id="yoy-content"></div>
+      </div>
+
+      <!-- HISTORIAL SECTION -->
+      <div class="section" id="sec-historial">
+        <div class="section-header">
+          <div class="section-title">Historial de análisis</div>
+          <div class="section-sub" id="sub-historial">Análisis guardados para tu BL</div>
+        </div>
+        <div id="historial-content" style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:2rem 0;text-align:center;">Selecciona una BL y guarda tu primer análisis para ver el historial.</div>
+      </div>
+
+      <!-- TENDENCIAS SECTION -->
+      <div class="section" id="sec-tendencias">
+        <div class="section-header">
+          <div class="section-title">Tendencias de tu BL</div>
+          <div class="section-sub" id="sub-tendencias">Evolución de métricas clave a lo largo del tiempo</div>
+        </div>
+        <div id="tendencias-content">
+          <div class="grid2" style="margin-bottom:16px;">
+            <div class="card"><div class="card-title">Tasa de conversión (%)</div><canvas id="chart-conv" height="180"></canvas></div>
+            <div class="card"><div class="card-title">% Cierre por demora</div><canvas id="chart-demora" height="180"></canvas></div>
+          </div>
+          <div class="card" style="margin-bottom:16px;"><div class="card-title">Esfuerzo medio por conversación (msgs asesor)</div><canvas id="chart-esfuerzo" height="120"></canvas></div>
+          <div id="tendencias-empty" style="display:none;font-family:var(--mono);font-size:12px;color:var(--muted);padding:2rem;text-align:center;">Guarda al menos 2 análisis para ver tendencias.</div>
+        </div>
+      </div>
+
+      <!-- OVERVIEW SECTION -->
+      <div class="section" id="sec-overview">
+        <div class="section-header">
+          <div class="section-title">Vista general — Todas las BL</div>
+          <div class="section-sub">Último análisis guardado por línea de negocio</div>
+        </div>
+        <div id="overview-content" style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:2rem 0;text-align:center;">Cargando...</div>
+      </div>
+
+      <div class="footer-bar" id="footer"></div>
+    </div>
+  </div>
+</div>
+
+
+<div id="forecast-screen" style="display:none;">
+
+
+<div id="forecast-preload-note" style="display:none;background:rgba(29,189,138,0.08);border:0.5px solid rgba(29,189,138,0.25);border-radius:10px;padding:0.85rem 1.25rem;margin-bottom:1.5rem;font-size:13px;color:rgba(240,242,247,0.75);line-height:1.6;gap:10px;"></div>
+<div class="header">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><button onclick="hideForecast()" style="background:transparent;border:0.5px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--muted);font-family:var(--mono);font-size:10px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">← Analizador</button></div><div class="h1" id="forecast-title">Forecast de Ciclo — Posgrados UVM</div>
+    <div class="sub" id="header-sub">Actualiza los datos y el forecast se recalcula automáticamente</div>
+  </div>
+  
+</div>
+
+<!-- INPUTS MANUALES -->
+<button class="toggle-btn" id="toggle-datos" onclick="toggleSection('datos','toggle-datos')">
+  <span class="arrow">▼</span> Datos del ciclo
+  <span style="margin-left:auto;color:rgba(107,114,128,0.5);">clic para ocultar</span>
+</button>
+<div class="input-collapsible" id="sec-datos">
+<div class="input-section">
+  <div class="input-section-title">📊 Datos actuales del ciclo <span style="font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:400;">— actualiza cada semana</span></div>
+  <div class="input-grid">
+    <div class="input-item">
+      <div class="input-label">Semana actual</div>
+      <input class="input-field" id="in-sem" type="text" value="202618" placeholder="ej. 202619">
+      <div class="input-sub">formato YYYYSS</div>
+    </div>
+    <div class="input-item">
+      <div class="input-label">Inscritos reales</div>
+      <input class="input-field" id="in-real" type="number" value="976">
+      <div class="input-sub">acumulado al día</div>
+    </div>
+    <div class="input-item">
+      <div class="input-label">Año anterior (mismo punto)</div>
+      <input class="input-field" id="in-aa" type="number" value="1029">
+      <div class="input-sub">inscritos AA</div>
+    </div>
+    <div class="input-item">
+      <div class="input-label">Meta al día de hoy</div>
+      <input class="input-field" id="in-meta-hoy" type="number" value="1173">
+      <div class="input-sub">inscritos esperados</div>
+    </div>
+    <div class="input-item">
+      <div class="input-label">Meta total del ciclo</div>
+      <input class="input-field" id="in-meta-total" type="number" value="3231">
+      <div class="input-sub">AA total: 2,702</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<button class="toggle-btn" id="toggle-tasas" onclick="toggleSection('tasas','toggle-tasas')">
+  <span class="arrow">▼</span> Tasas del funnel
+  <span style="margin-left:auto;color:rgba(107,114,128,0.5);">clic para ocultar</span>
+</button>
+<div class="input-collapsible" id="sec-tasas">
+<div class="input-section">
+  <div class="input-section-title">📈 Tasas de conversión del funnel <span style="font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:400;">— <span style="color:var(--blue);">AA</span> y <span style="color:var(--orange);">Real</span> en %</span></div>
+  <div class="input-grid-rates">
+    <div class="input-item">
+      <div class="input-label">Leads → Contactados</div>
+      <div class="rate-labels"><span class="rate-label" style="color:var(--blue);">AA %</span><span class="rate-label" style="color:var(--orange);">Real %</span></div>
+      <div class="input-row">
+        <input class="input-field rate rate-aa" id="r-lc-aa" type="number" step="0.1" value="41.5">
+        <input class="input-field rate rate-real" id="r-lc-real" type="number" step="0.1" value="32.9">
+      </div>
+      <div class="rate-var" id="var-lc" style="color:var(--orange);">-8.2% ↓</div>
+      <div class="input-sub" style="text-align:center;">Acción: protocolo contacto</div>
+    </div>
+    <div class="input-item">
+      <div class="input-label">Leads → Asistencia</div>
+      <div class="rate-labels"><span class="rate-label" style="color:var(--blue);">AA %</span><span class="rate-label" style="color:var(--orange);">Real %</span></div>
+      <div class="input-row">
+        <input class="input-field rate rate-aa" id="r-la-aa" type="number" step="0.1" value="4.2">
+        <input class="input-field rate rate-real" id="r-la-real" type="number" step="0.1" value="3.9">
+      </div>
+      <div class="rate-var" id="var-la" style="color:var(--green);">+9.9% ↑</div>
+      <div class="input-sub" style="text-align:center;">Acción: recordatorios</div>
+    </div>
+    <div class="input-item">
+      <div class="input-label">Citado → Asistencia</div>
+      <div class="rate-labels"><span class="rate-label" style="color:var(--blue);">AA %</span><span class="rate-label" style="color:var(--orange);">Real %</span></div>
+      <div class="input-row">
+        <input class="input-field rate rate-aa" id="r-ca-aa" type="number" step="0.1" value="83.4">
+        <input class="input-field rate rate-real" id="r-ca-real" type="number" step="0.1" value="83.8">
+      </div>
+      <div class="rate-var" id="var-ca" style="color:var(--orange);">-3.9% ↓</div>
+      <div class="input-sub" style="text-align:center;">Acción: confirmación previa</div>
+    </div>
+    <div class="input-item">
+      <div class="input-label">Asiste → Inscrito ⚠</div>
+      <div class="rate-labels"><span class="rate-label" style="color:var(--blue);">AA %</span><span class="rate-label" style="color:var(--orange);">Real %</span></div>
+      <div class="input-row">
+        <input class="input-field rate rate-aa" id="r-ai-aa" type="number" step="0.1" value="43.6">
+        <input class="input-field rate rate-real" id="r-ai-real" type="number" step="0.1" value="43.0">
+      </div>
+      <div class="rate-var" id="var-ai" style="color:var(--orange);">-14.4% ↓</div>
+      <div class="input-sub" style="text-align:center;color:var(--orange);">Cuello de botella #1</div>
+    </div>
+  </div>
+  <button class="update-btn" onclick="recalcAll()">↺ Actualizar forecast</button>
+</div>
+</div>
+
+<!-- SITUACIÓN ACTUAL -->
+<div class="section-label">Situación actual</div>
+<div class="grid4">
+  <div class="mc o"><div class="mc-label">Inscritos reales</div><div class="mc-val" id="d-real">939</div><div class="mc-sub" id="d-sem">sem. 202618</div></div>
+  <div class="mc b"><div class="mc-label">Año anterior</div><div class="mc-val" id="d-aa">977</div><div class="mc-sub" id="d-vsaa"></div></div>
+  <div class="mc a"><div class="mc-label">Meta al día de hoy</div><div class="mc-val" id="d-meta-hoy">1,173</div><div class="mc-sub" id="d-vsmeta-hoy"></div></div>
+  <div class="mc g"><div class="mc-label">Meta total ciclo</div><div class="mc-val" id="d-meta-total">3,231</div><div class="mc-sub">AA total: 2,702</div></div>
+</div>
+
+<!-- SLIDERS -->
+<div class="slider-section">
+  <div class="slider-header">
+    <div class="slider-title">🎛 Simula el impacto de las acciones en conversaciones</div>
+    <button class="slider-reset" onclick="resetSliders()">↺ Resetear</button>
+  </div>
+  <div class="sliders-grid">
+    <div class="slider-item">
+      <div class="slider-label">
+        Mejora en Asiste→Inscrito
+        <span class="slider-val" id="val-ai">+0pp</span>
+      </div>
+      <input type="range" id="sl-ai" min="0" max="21" value="0" step="1" oninput="updateSliders()">
+      <div class="slider-chain" id="chain-ai">
+        Mueve el slider para ver el impacto en conversaciones → inscritos
+      </div>
+    </div>
+    <div class="slider-item">
+      <div class="slider-label">
+        Mejora en Leads→Contactados
+        <span class="slider-val" id="val-lc">+0pp</span>
+      </div>
+      <input type="range" id="sl-lc" min="0" max="15" value="0" step="1" oninput="updateSliders()">
+      <div class="slider-chain" id="chain-lc">
+        Mueve el slider para ver el impacto en conversaciones → inscritos
+      </div>
+    </div>
+    <div class="slider-item">
+      <div class="slider-label">
+        Reducción cierres x demora
+        <span class="slider-val" id="val-dem">-0%</span>
+      </div>
+      <input type="range" id="sl-dem" min="0" max="30" value="0" step="5" oninput="updateSliders()">
+      <div class="slider-chain" id="chain-dem">
+        Mueve el slider para ver el impacto en conversaciones → inscritos
+      </div>
+    </div>
+    <div class="slider-item">
+      <div class="slider-label">
+        Límite de follow-ups (actual: 25)
+        <span class="slider-val" id="val-fu">25 msgs</span>
+      </div>
+      <input type="range" id="sl-fu" min="3" max="25" value="25" step="1" oninput="updateSliders()">
+      <div class="slider-chain" id="chain-fu">
+        Mueve el slider para ver el impacto en conversaciones → inscritos
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ESCENARIOS -->
+<div class="section-label">Proyección al cierre del ciclo</div>
+<div class="grid3">
+  <div class="scenario-card sc-sin">
+    <div class="sc-badge">Sin acciones</div>
+    <div class="sc-title">Si todo sigue igual</div>
+    <div class="sc-num" id="sc-sin">—</div>
+    <div class="sc-meta-text">inscritos proyectados al cierre</div>
+    <div class="sc-row"><span class="sc-row-label">vs Meta ciclo</span><span class="sc-row-val" id="sin-meta">—</span></div>
+    <div class="sc-row"><span class="sc-row-label">vs Año anterior</span><span class="sc-row-val" id="sin-aa">—</span></div>
+    <div class="sc-row"><span class="sc-row-label">Próx. 4 semanas</span><span class="sc-row-val" id="sin-4w">—</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="sin-bar" style="background:var(--orange);width:0%"></div></div>
+    <div class="progress-pct" id="sin-pct">—</div>
+  </div>
+  <div class="scenario-card sc-mod">
+    <div class="sc-badge">Acciones moderadas</div>
+    <div class="sc-title">Aplicando recomendaciones</div>
+    <div class="sc-num" id="sc-mod">—</div>
+    <div class="sc-meta-text">inscritos proyectados al cierre</div>
+    <div class="sc-row"><span class="sc-row-label">vs Meta ciclo</span><span class="sc-row-val" id="mod-meta">—</span></div>
+    <div class="sc-row"><span class="sc-row-label">vs Año anterior</span><span class="sc-row-val" id="mod-aa">—</span></div>
+    <div class="sc-row"><span class="sc-row-label">Próx. 4 semanas</span><span class="sc-row-val" id="mod-4w">—</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="mod-bar" style="background:var(--amber);width:0%"></div></div>
+    <div class="progress-pct" id="mod-pct">—</div>
+  </div>
+  <div class="scenario-card sc-opt">
+    <div class="sc-badge">Acciones consistentes</div>
+    <div class="sc-title">Ejecución completa</div>
+    <div class="sc-num" id="sc-opt">—</div>
+    <div class="sc-meta-text">inscritos proyectados al cierre</div>
+    <div class="sc-row"><span class="sc-row-label">vs Meta ciclo</span><span class="sc-row-val" id="opt-meta">—</span></div>
+    <div class="sc-row"><span class="sc-row-label">vs Año anterior</span><span class="sc-row-val" id="opt-aa">—</span></div>
+    <div class="sc-row"><span class="sc-row-label">Próx. 4 semanas</span><span class="sc-row-val" id="opt-4w">—</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="opt-bar" style="background:var(--green);width:0%"></div></div>
+    <div class="progress-pct" id="opt-pct">—</div>
+    <div style="margin-top:10px;padding:8px 10px;background:rgba(29,189,138,0.06);border-left:2px solid rgba(29,189,138,0.4);border-radius:4px;font-size:11px;color:rgba(240,242,247,0.6);line-height:1.6;font-family:var(--mono);">
+      📌 Referencia C1 2026: meta 3,873 · real 3,953 · <strong style="color:var(--green);">+2.1% sobre meta</strong>. Replicar ese resultado en C2 es el objetivo del escenario optimista.
+    </div>
+  </div>
+</div>
+
+<!-- BEAST MODE -->
+<div style="margin-bottom:1.5rem;">
+  <div class="scenario-card sc-beast" style="border:0.5px solid rgba(74,158,232,0.4);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+      <div class="sc-badge" style="color:#4a9ee8;">🚀 Maximum Performance</div>
+      <span class="beast-label">Escenario 4</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:0.75rem;">
+      <div class="sc-title" style="margin-bottom:0;">Objetivo vs meta:</div>
+      <div style="display:flex;gap:4px;">
+        <button onclick="setBeastTarget(0.10,this)" class="beast-target-btn active-beast" data-pct="10">+10%</button>
+        <button onclick="setBeastTarget(0.15,this)" class="beast-target-btn" data-pct="15">+15%</button>
+        <button onclick="setBeastTarget(0.20,this)" class="beast-target-btn" data-pct="20">+20%</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <div>
+        <div style="font-size:36px;font-weight:700;letter-spacing:-2px;color:#4a9ee8;line-height:1;" id="sc-beast">—</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:0.75rem;">inscritos proyectados al cierre</div>
+        <div class="sc-row"><span class="sc-row-label">vs Meta ciclo</span><span class="sc-row-val" id="beast-meta" style="color:#4a9ee8;">—</span></div>
+        <div class="sc-row"><span class="sc-row-label">vs Año anterior</span><span class="sc-row-val" id="beast-aa" style="color:#4a9ee8;">—</span></div>
+        <div class="sc-row"><span class="sc-row-label">Próx. 4 semanas</span><span class="sc-row-val" id="beast-4w">—</span></div>
+        <div class="progress-bar"><div class="progress-fill" id="beast-bar" style="background:#4a9ee8;width:0%"></div></div>
+        <div class="progress-pct" id="beast-pct">—</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:0.85rem;font-size:12px;">
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px;">Configuración de sliders</div>
+        <div id="beast-config">
+          <div style="margin-bottom:6px;color:rgba(240,242,247,0.7);">⚡ Calculando...</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:rgba(240,242,247,0.55);line-height:1.6;border-top:0.5px solid rgba(255,255,255,0.07);padding-top:0.75rem;">
+      <strong style="color:rgba(240,242,247,0.7);">Nota:</strong> El 80% del esfuerzo recae en Asiste→Inscrito (+21pp). Requiere capacitación intensiva de cierre en cita + incremento de equipo de contact center. Matemáticamente fundamentado en meta y tasas AA.
+    </div>
+  </div>
+</div>
+
+<!-- CURVA -->
+<div class="chart-card">
+  <div class="card-title">Curva acumulada de inscritos — semana por semana</div>
+  <div class="chart-legend">
+    <div class="legend-item"><div class="legend-line" style="background:var(--blue);"></div>Año anterior (AA)</div>
+    <div class="legend-item"><div class="legend-line" style="background:var(--orange);"></div>Real</div>
+    <div class="legend-item"><div class="legend-line" style="background:var(--gray);"></div>Sin acciones</div>
+    <div class="legend-item"><div class="legend-line" style="background:var(--amber);"></div>Moderado</div>
+    <div class="legend-item"><div class="legend-line" style="background:var(--green);"></div>Optimista</div>
+    <div class="legend-item"><div class="legend-line" style="background:#4a9ee8;border-top:2px dashed #4a9ee8;height:0;"></div>Maximum Performance <span style="font-size:10px;color:rgba(107,114,128,0.6);">(al aplicar)</span></div>
+  </div>
+  <div style="position:relative;height:280px;"><canvas id="curvaChart"></canvas></div>
+</div>
+
+<!-- CONCLUSIONES -->
+<div class="section-label">Conclusiones y acciones</div>
+<div class="grid2">
+  <div class="card">
+    <div class="card-title" style="color:var(--blue);">📌 3 conclusiones clave</div>
+    <div id="conclusions-insights"></div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="color:var(--green);">🎯 3 acciones para recuperar terreno</div>
+    <div id="conclusions-actions"></div>
+  </div>
+</div>
+
+<div class="footer">
+  <span id="footer-left">Forecast C2 2026 · PG UVM · PG Analytics</span>
+  <span>Generado <span id="footer-date"></span></span>
+</div>
+
+
+
+</div>
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// SUPABASE CONFIG — replace with your own project credentials
+// ════════════════════════════════════════════════════════════════════════════
+var SUPABASE_URL  = 'https://jfombadceqhroedxrqhf.supabase.co';
+var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impmb21iYWRjZXFocm9lZHhycWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2Njg5MTUsImV4cCI6MjA5MzI0NDkxNX0.3YrHe1IjId0yXoT6N5Rl-lAzIY4fFlko_EIvradVMYQ';
+var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// Business Line list — extend as needed
+var BL_LIST = [
+  'PG UVM CDMX','PG UVM GDL','PG UVM MTY','PG UVM QRO','PG UVM Monterrey Norte',
+  'PG UNITEC CDMX','PG UNITEC GDL','PG UNITEC MTY',
+  'PG Otra'
+];
+
+// Runtime state
+var selectedBL = localStorage.getItem('pg_selected_bl') || '';
+var _lastMetrics    = null;
+var _lastFileObject = null;
+var _chartConv = null, _chartDemora = null, _chartEsfuerzo = null;
+
+// Populate BL dropdown and restore saved selection
+(function initBLSelect() {
+  var sel = document.getElementById('bl-select');
+  if (!sel) return;
+  var saved = localStorage.getItem('pg_selected_bl') || '';
+  BL_LIST.forEach(function(bl) {
+    var opt = document.createElement('option');
+    opt.value = bl; opt.textContent = bl;
+    if (bl === saved) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (saved) { selectedBL = saved; sel.value = saved; }
+})();
+
+// ════════════════════════════════════════════════════════════════════════════
+// SAVE ANALYSIS
+// ════════════════════════════════════════════════════════════════════════════
+async function saveAnalysis() {
+  if (!selectedBL) { showToast('Selecciona una BL antes de guardar'); return; }
+  if (!_lastMetrics) { showToast('Primero analiza un archivo'); return; }
+  var btn = document.getElementById('save-btn');
+  btn.textContent = '⏳ Guardando...'; btn.style.pointerEvents = 'none';
+  try {
+    var csvPath = null;
+    if (_lastFileObject) {
+      var ts = Date.now();
+      var safeBL = selectedBL.replace(/[^a-z0-9]/gi,'_').toLowerCase();
+      var storagePath = safeBL + '/' + ts + '_' + _lastFileObject.name;
+      var upRes = await _sb.storage.from('csvs').upload(storagePath, _lastFileObject, {contentType:'text/csv',upsert:false});
+      if (!upRes.error) csvPath = storagePath;
+    }
+    var dbRes = await _sb.from('analyses').insert({
+      bl_name:          selectedBL,
+      filename:         _lastMetrics.filename,
+      brand:            _lastMetrics.brand,
+      period_start:     _lastMetrics.periodStart || null,
+      period_end:       _lastMetrics.periodEnd   || null,
+      metrics:          _lastMetrics,
+      forecast_data:    (typeof __forecastData !== 'undefined') ? __forecastData : null,
+      csv_storage_path: csvPath
+    });
+    if (dbRes.error) throw dbRes.error;
+    btn.textContent = '✅ Guardado';
+    btn.style.borderColor = 'rgba(29,189,138,0.5)';
+    showToast('Análisis guardado ✓');
+  } catch(e) {
+    console.error(e);
+    showToast('Error al guardar: ' + (e.message || e));
+    btn.textContent = '💾 Guardar análisis';
+    btn.style.pointerEvents = '';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// HISTORY SECTION
+// ════════════════════════════════════════════════════════════════════════════
+async function renderHistory() {
+  var container = document.getElementById('historial-content');
+  var sub = document.getElementById('sub-historial');
+  if (!selectedBL) {
+    container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:2rem;text-align:center;">Selecciona una BL para ver su historial.</div>';
+    return;
+  }
+  sub.textContent = 'BL: ' + selectedBL;
+  container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:1rem 0;">Cargando...</div>';
+  try {
+    var res = await _sb.from('analyses').select('id,filename,upload_date,period_start,period_end,brand,metrics,csv_storage_path').eq('bl_name',selectedBL).order('upload_date',{ascending:false}).limit(50);
+    if (res.error) throw res.error;
+    var data = res.data;
+    if (!data || !data.length) {
+      container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:2rem;text-align:center;">Todavía no hay análisis guardados para esta BL.</div>';
+      return;
+    }
+    var rows = data.map(function(row) {
+      var m = row.metrics || {};
+      var date = new Date(row.upload_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+      var period = (row.period_start && row.period_end) ? row.period_start + ' → ' + row.period_end : '—';
+      var convRate = m.conversionRate !== undefined ? m.conversionRate.toFixed(1)+'%' : '—';
+      var demora = m.pDemora !== undefined ? m.pDemora.toFixed(1)+'%' : '—';
+      var totalConvsStr = m.totalConvs ? fmt(m.totalConvs) : '—';
+      var csvBtn = row.csv_storage_path ? '<button onclick="downloadCSV(\''+row.csv_storage_path+'\')" style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:6px;border:0.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;margin-left:4px;">⬇ CSV</button>' : '';
+      return '<tr>'
+        +'<td class="wk">'+date+'</td>'
+        +'<td style="font-size:12px;">'+( row.filename||'—')+'</td>'
+        +'<td style="font-size:11px;color:var(--muted);font-family:var(--mono);">'+period+'</td>'
+        +'<td class="r">'+totalConvsStr+'</td>'
+        +'<td class="r"><span class="pill pill-g">'+convRate+'</span></td>'
+        +'<td class="r">'+demora+'</td>'
+        +'<td class="r" style="white-space:nowrap;">'
+        +'<button onclick="reloadAnalysis(\''+row.id+'\')" style="font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:6px;border:0.5px solid rgba(232,88,26,0.3);background:transparent;color:var(--orange);cursor:pointer;">↺ Ver</button>'
+        +csvBtn+'</td>'
+        +'</tr>';
+    }).join('');
+    container.innerHTML = '<table class="weekly-table"><thead><tr>'
+      +'<th>Fecha</th><th>Archivo</th><th>Periodo</th>'
+      +'<th class="r">Convs</th><th class="r">Conv. rate</th>'
+      +'<th class="r">% Demora</th><th class="r">Acciones</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table>';
+  } catch(e) {
+    console.error(e);
+    container.innerHTML = '<div style="color:var(--orange);font-size:12px;padding:1rem;">Error: '+(e.message||e)+'</div>';
+  }
+}
+
+async function downloadCSV(storagePath) {
+  try {
+    var res = await _sb.storage.from('csvs').createSignedUrl(storagePath, 60);
+    if (res.error) throw res.error;
+    var a = document.createElement('a');
+    a.href = res.data.signedUrl;
+    a.download = storagePath.split('/').pop();
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } catch(e) { showToast('Error descargando CSV: '+(e.message||e)); }
+}
+
+async function reloadAnalysis(id) {
+  try {
+    var res = await _sb.from('analyses').select('*').eq('id',id).single();
+    if (res.error) throw res.error;
+    var row = res.data;
+    if (row.forecast_data) window.__forecastData = row.forecast_data;
+    renderFromMetrics(row.metrics, row.filename, row.brand);
+    showSection('stoppers', document.getElementById('nav-stoppers'));
+    showToast('Análisis cargado: ' + row.filename);
+  } catch(e) { showToast('Error: '+(e.message||e)); }
+}
+
+function renderFromMetrics(m, filename, brand) {
+  if (!m) return;
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  selectedBrand = brand || m.brand || 'UVM';
+  var ds = new Date().toLocaleDateString('es-MX');
+  document.getElementById('sidebar-brand').textContent = 'PG '+(selectedBrand !== 'OTRA' ? selectedBrand : 'Analytics');
+  document.getElementById('sidebar-file-tag').textContent = (filename||'').replace('.csv','').substring(0,22);
+  document.getElementById('sidebar-filename').textContent = filename || '';
+  var sub = fmt(m.totalConvs||0)+' conversaciones · '+ds+' (historial)';
+  ['sub-stoppers','sub-esfuerzo','sub-tiempos'].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent=sub; });
+  var topCat = m.topStopper ? [[m.topStopper, m.topStopperCount||0]] : null;
+  document.getElementById('metrics-stoppers').innerHTML =
+    mc('o1','Conversaciones únicas',fmt(m.totalConvs||0),fmt(m.totalMsgs||0)+' mensajes únicos')+
+    mc('o2','Stoppers decisionales',fmt(m.totalStoppers||0),'decisión activa de no continuar')+
+    mc('o1','Cierre x demora',fmt(m.totalCierre||0),'problema operativo')+
+    mc('o3','Principal stopper',m.topStopperPct?m.topStopperPct.toFixed(1)+'%':'—',m.topStopper||'sin datos');
+  document.getElementById('alert-demora').innerHTML = '<div style="font-size:18px;flex-shrink:0;margin-top:1px;">⚠</div><div class="alert-text">Los <strong>'+fmt(m.totalCierre||0)+' cierres por demora</strong> ('+(m.pDemora||0).toFixed(1)+'% del total) son problema operativo.</div>';
+  document.getElementById('metrics-esfuerzo').innerHTML =
+    mc('o1','Msgs de asesor',fmt(m.totalAgentMsgs||0),'total mensajes enviados')+
+    mc('o2','Convs sin asesor',fmt(m.noAgent||0),pct(m.noAgent||0,m.totalConvs||1)+'% del total')+
+    mc('o3','Respondidas <5 min',m.pct5resp!==undefined?m.pct5resp.toFixed(1)+'%':'—','de conversaciones medibles')+
+    mc('gr','Respondidas <1 min',m.pct1resp!==undefined?m.pct1resp.toFixed(1)+'%':'—','primera respuesta del asesor');
+  document.getElementById('save-btn').style.display = '';
+  document.getElementById('sidebar-bl').style.display = '';
+  document.getElementById('sidebar-bl-name').textContent = selectedBL;
+  _lastMetrics = m;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TRENDS SECTION
+// ════════════════════════════════════════════════════════════════════════════
+async function renderTrends() {
+  var sub = document.getElementById('sub-tendencias');
+  var empty = document.getElementById('tendencias-empty');
+  if (!selectedBL) { if(empty) empty.style.display=''; sub.textContent='Sin BL seleccionada'; return; }
+  sub.textContent = 'BL: ' + selectedBL;
+  try {
+    var res = await _sb.from('analyses').select('upload_date,metrics').eq('bl_name',selectedBL).order('upload_date',{ascending:true}).limit(20);
+    if (res.error) throw res.error;
+    var data = res.data || [];
+    if (data.length < 2) { if(empty) empty.style.display=''; return; }
+    if(empty) empty.style.display = 'none';
+    var labels = data.map(function(r){ return new Date(r.upload_date).toLocaleDateString('es-MX',{day:'numeric',month:'short'}); });
+    var convRates  = data.map(function(r){ var m=r.metrics||{}; return m.conversionRate!==undefined ? +m.conversionRate.toFixed(2) : null; });
+    var demoraRates= data.map(function(r){ var m=r.metrics||{}; return m.pDemora!==undefined ? +m.pDemora.toFixed(2) : null; });
+    var esfuerzoAvg= data.map(function(r){ var m=r.metrics||{}; return (m.totalAgentMsgs&&m.totalConvs) ? +(m.totalAgentMsgs/m.totalConvs).toFixed(1) : null; });
+    function trendCfg(label, vals, color) {
+      return {type:'line',data:{labels:labels,datasets:[{label:label,data:vals,borderColor:color,backgroundColor:color.replace(')',',0.08)').replace('rgb','rgba'),borderWidth:2,pointRadius:4,tension:0.3,fill:true}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+          scales:{x:{ticks:{font:{size:10},color:'#6b7280'},grid:{color:'rgba(255,255,255,0.03)'}},y:{ticks:{font:{size:10},color:'#6b7280'},grid:{color:'rgba(255,255,255,0.04)'}}}}};
+    }
+    if(_chartConv)    { _chartConv.destroy();    _chartConv=null; }
+    if(_chartDemora)  { _chartDemora.destroy();  _chartDemora=null; }
+    if(_chartEsfuerzo){ _chartEsfuerzo.destroy(); _chartEsfuerzo=null; }
+    _chartConv     = new Chart(document.getElementById('chart-conv'),     trendCfg('Conv %',    convRates,   'rgb(29,189,138)'));
+    _chartDemora   = new Chart(document.getElementById('chart-demora'),   trendCfg('% Demora',  demoraRates, 'rgb(232,88,26)'));
+    _chartEsfuerzo = new Chart(document.getElementById('chart-esfuerzo'), trendCfg('Msgs/conv', esfuerzoAvg, 'rgb(74,158,232)'));
+  } catch(e) { console.error(e); showToast('Error tendencias: '+(e.message||e)); }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// OVERVIEW SECTION
+// ════════════════════════════════════════════════════════════════════════════
+async function renderOverview() {
+  var container = document.getElementById('overview-content');
+  container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:1rem 0;text-align:center;">Cargando...</div>';
+  try {
+    var results = [];
+    for (var i = 0; i < BL_LIST.length; i++) {
+      var bl = BL_LIST[i];
+      var res = await _sb.from('analyses').select('bl_name,upload_date,filename,metrics').eq('bl_name',bl).order('upload_date',{ascending:false}).limit(2);
+      if (!res.error && res.data && res.data.length) results.push({bl:bl, rows:res.data});
+    }
+    if (!results.length) {
+      container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);padding:2rem;text-align:center;">Todavía no hay análisis guardados en ninguna BL.</div>';
+      return;
+    }
+    var tableRows = results.map(function(r) {
+      var latest=r.rows[0], prev=r.rows[1]||null;
+      var m=latest.metrics||{}, pm=prev?(prev.metrics||{}):null;
+      var date=new Date(latest.upload_date).toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
+      var totalConvsStr=m.totalConvs?fmt(m.totalConvs):'—';
+      var convRate=m.conversionRate!==undefined?m.conversionRate.toFixed(1)+'%':'—';
+      var demora=m.pDemora!==undefined?m.pDemora.toFixed(1)+'%':'—';
+      var arrow='—';
+      if(pm&&pm.pDemora!==undefined&&m.pDemora!==undefined){
+        if(m.pDemora<pm.pDemora) arrow='<span style="color:#1dbd8a;">↓ mejor</span>';
+        else if(m.pDemora>pm.pDemora) arrow='<span style="color:var(--orange);">↑ peor</span>';
+        else arrow='<span style="color:var(--muted);">→ igual</span>';
+      }
+      return '<tr>'
+        +'<td style="font-size:13px;font-weight:600;">'+r.bl+'</td>'
+        +'<td class="wk">'+date+'</td>'
+        +'<td class="r">'+totalConvsStr+'</td>'
+        +'<td class="r"><span class="pill pill-g">'+convRate+'</span></td>'
+        +'<td class="r">'+demora+'</td>'
+        +'<td class="r">'+arrow+'</td>'
+        +'</tr>';
+    }).join('');
+    container.innerHTML = '<table class="weekly-table"><thead><tr>'
+      +'<th>BL</th><th>Último análisis</th><th class="r">Convs</th>'
+      +'<th class="r">Conv. rate</th><th class="r">% Demora</th><th class="r">Tendencia demora</th>'
+      +'</tr></thead><tbody>'+tableRows+'</tbody></table>';
+  } catch(e) { console.error(e); container.innerHTML='<div style="color:var(--orange);font-size:12px;padding:1rem;">Error: '+(e.message||e)+'</div>'; }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+
+var chart = null;
+var realCurve = [1,2,5,7,90,260,374,520,698,889,939,null,null,null,null,null,null,null,null,null,null,null];
+
+
+/* ===== ANALIZADOR JS ===== */
+
+function showSection(name, el) {
+  document.querySelectorAll('.section').forEach(function(s){s.classList.remove('active');});
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+  document.getElementById('sec-'+name).classList.add('active');
+  el.classList.add('active');
+}
+
+var CODES = {
+  UVM: {
+    cierre: ['SE CIERRA CONVERSACION POR DEMORA EN RESPUESTA DE PROSPECTO','SIN RESPUESTA DEL PROSPECTO','NO CONTESTA'],
+    conversions: ['AGENDA CITA WA','AGENDA CITA - WA','AGENDA CITA CALIXTA','YA INSCRITO EN UVM','SE INSCRIBIRA','INTERESADO CICLO C3','INTERESADO CICLO C2','PROSPECTO CON CITA VIGENTE','PROSPECTO INTERESADO EN PRESENCIAL','INTERESADO CICLO C1'],
+    seguimiento: ['ENVIAR INFO X MAIL','PROGRAMAR LLAMADA'],
+    stoppers: {
+      'Precio / Economía': ['NO CONT X PRECIO','INCIERTO ECONOMIA','NIX PRECIO PAGO INICIAL'],
+      'Competencia': ['NO CONT X EVALUA OTRA PRIVADA','INCIERTO COMPETENCIA'],
+      'Logística': ['NO CONT X UBICACION CAMPUS','NO CONT X HORARIOS DE CLASES','NO CONT X FALTA TIEMPO','INCIERTO TIEMPO'],
+      'Perfil': ['NO CONT X RANGO EDAD O PERFIL','CONSULTA PADRE O TUTOR'],
+      'Oferta académica': ['NO CONT X NO HAY CARRERA','NIX NO EXISTE PROGRAMA'],
+      'Operativos': ['NIX EN ESPERA DE KARDEX','NIX ESPERA DE RESPUESTA DE EQUIVALENCIA','NIX ATENCION NO ADECUADA','NO CONT X MOLESTIA X INSISTENCIA','SPAM','DATOS FALSOS O INEXISTENTES','LLAMADA RECHAZADA']
+    }
+  },
+  UNITEC: {
+    cierre: ['CHAT_Intervalo sin respuesta cliente','WHATSAPP_Intervalo sin respuesta cliente','ABANDONADA','SIN INTERACCION CON PROSPECTO','PROSPECTO NO PROPORCIONA DATOS'],
+    conversions: ['AGENDO CITA','AGENDA CITA','SE INSCRIBE EN LINEA','YA ES ALUMNO DE POSG UNITEC'],
+    stoppers: {
+      'Precio / Economía': ['NAX PRECIO','PRECIO FUERA DE ALCANCE'],
+      'Oferta académica': ['NAX NO HAY CARRERA','NO HAY OFERTA DE INTERES'],
+      'Competencia': ['NAX PUB_ DECIDIO OTRA ESC_'],
+      'Logística': ['NO ACEPTA ONLINE','HORARIO DE CLASES INCOMPATIBLE','TRABAJO'],
+      'Perfil / Decisor': ['NO ES EL DECISOR','CONSULTAR PADRES O TUTOR','NO VALIDO CICLO VIGENTE'],
+      'Operativos': ['EQ INTERESADO SIN DOCUMENTOS','NO AGENDA_NO TIENE DOCUMENTOS','MOLESTIA X INSISTENCIA','NO BRINDA DATOS PERSONALES POR DESCONFIANZA'],
+      'Próximo ciclo': ['PROSPECTO DOS CICLOS MAS']
+    }
+  },
+  OTRA: { cierre: [], conversions: [], stoppers: {} }
+};
+
+var CAT_COLORS = {
+  'Precio / Economía':'#E8581A','Competencia':'#F28C42','Logística':'#F0A96B',
+  'Perfil':'#e8734a','Perfil / Decisor':'#e8734a','Oferta académica':'#e8b84a',
+  'Operativos':'#888780','Próximo ciclo':'#F28C42'
+};
+
+var selectedBrand = 'UVM';
+document.querySelectorAll('.brand-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('.brand-btn').forEach(function(b){b.classList.remove('active');});
+    btn.classList.add('active');
+    selectedBrand = btn.dataset.brand;
+  });
+});
+
+var dropZone = document.getElementById('drop-zone');
+var fileInput = document.getElementById('file-input');
+dropZone.addEventListener('click', function(){fileInput.click();});
+dropZone.addEventListener('dragover', function(e){e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave', function(){dropZone.classList.remove('drag-over');});
+dropZone.addEventListener('drop', function(e){e.preventDefault();dropZone.classList.remove('drag-over');handleFile(e.dataTransfer.files[0]);});
+fileInput.addEventListener('change', function(e){handleFile(e.target.files[0]);});
+
+function detectBrand(rows) {
+  var codes = new Set(rows.slice(0,500).map(function(r){return (r.DISPOSITIONCODE||'').trim();}).filter(Boolean));
+  var u = ['NO CONT X PRECIO','AGENDA CITA WA','SE CIERRA CONVERSACION POR DEMORA EN RESPUESTA DE PROSPECTO'].filter(function(c){return codes.has(c);}).length;
+  var n = ['NAX PRECIO','AGENDO CITA','CHAT_Intervalo sin respuesta cliente'].filter(function(c){return codes.has(c);}).length;
+  if(u>n) return 'UVM'; if(n>u) return 'UNITEC'; return selectedBrand;
+}
+
+function handleFile(file) {
+  if(!file) return;
+  if(!file.name.endsWith('.csv')){ showError('El archivo debe ser un CSV.'); return; }
+  _lastFileObject = file;
+  showLoading();
+  Papa.parse(file, {
+    header:true, delimiter:';', skipEmptyLines:true,
+    complete: function(results){
+      var missing = ['PARENTID','DATE','AGENT','DISPOSITIONCODE'].filter(function(c){return !results.meta.fields.includes(c);});
+      if(missing.length){ showError('Columnas faltantes: '+missing.join(', ')); resetToUpload(); return; }
+      selectedBrand = detectBrand(results.data);
+      document.querySelectorAll('.brand-btn').forEach(function(b){b.classList.toggle('active',b.dataset.brand===selectedBrand);});
+      setTimeout(function(){analyzeAndRender(results.data, file.name);}, 300);
+    },
+    error: function(){showError('Error leyendo el archivo.'); resetToUpload();}
+  });
+}
+
+function showLoading() {
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('loading-screen').style.display='flex';
+  var steps=['Leyendo archivo...','Deduplicando mensajes...','Identificando stoppers...','Calculando tiempos...','Midiendo esfuerzo...','Armando el dashboard...'];
+  var i=0, bar=document.getElementById('loading-bar'), label=document.getElementById('loading-label');
+  var iv=setInterval(function(){ if(i>=steps.length){clearInterval(iv);return;} label.textContent=steps[i]; bar.style.width=((i+1)/steps.length*90)+'%'; i++; },300);
+}
+function resetToUpload(){document.getElementById('loading-screen').style.display='none';document.getElementById('upload-screen').style.display='flex';}
+function showError(msg){var el=document.getElementById('error-msg');el.textContent=msg;el.style.display='block';}
+function resetApp(){
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('error-msg').style.display='none';
+  document.getElementById('file-input').value='';
+  document.querySelectorAll('.section').forEach(function(s,i){s.classList.toggle('active',i===0);});
+  document.querySelectorAll('.nav-item').forEach(function(n,i){n.classList.toggle('active',i===0);});
+}
+
+function analyzeAndRender(rows, filename) {
+  var brand=selectedBrand, codes=CODES[brand]||CODES['OTRA'];
+  var seen=new Set();
+  var data=rows.filter(function(r){var k=r.PARENTID+'|'+r.DATE+'|'+r.TEXT+'|'+r.AGENT;if(seen.has(k))return false;seen.add(k);return true;});
+  var convMap={};
+  data.forEach(function(r){if(!r.PARENTID)return;if(!convMap[r.PARENTID])convMap[r.PARENTID]=[];convMap[r.PARENTID].push(r);});
+  var convIds=Object.keys(convMap), totalConvs=convIds.length, totalMsgs=data.length;
+  var allStopperCodes=Object.values(codes.stoppers).reduce(function(a,b){return a.concat(b);},[]);
+  var priorityCodes=codes.conversions.concat(allStopperCodes).concat(codes.cierre).concat(codes.seguimiento||[]);
+  var respTimes={'Conversión':[],'Stopper':[],'Cierre x demora':[],'En seguimiento':[],'Otro':[]};
+  var effortByCategory={'Conversión':0,'Stopper':0,'Cierre x demora':0,'En seguimiento':0,'Otro':0};
+  var convsByCategory={'Conversión':0,'Stopper':0,'Cierre x demora':0,'En seguimiento':0,'Otro':0};
+  var measurable=0,noAgent=0,noProspect=0,botFirst=0;
+  var stopperCatCounts={}, stopperCodeCounts={};
+  Object.keys(codes.stoppers).forEach(function(k){stopperCatCounts[k]=0;});
+  var weeklyBot={}, weeklyAgent={}, weeklyBotHour={}, weeklyAgentHour={};
+
+  // Repetición bot→asesor: temas que el bot cubrió y el asesor repitió
+  var TEMAS = {
+    'Precio / Costo': ['precio','costo','mensualidad','pago','beca','descuento','inversión','cuota','financiamiento','monto'],
+    'Modalidad / Online': ['en línea','online','virtual','presencial','híbrido','modalidad','plataforma','clase','horario','sesión'],
+    'Requisitos / Documentos': ['requisito','documento','kardex','título','certificado','acta','comprobante','id','identificación','trámite'],
+    'Proceso de inscripción': ['inscripción','registr','admisión','ficha','proceso','pasos','solicitud','formulario','link','liga'],
+    'Programas / Carreras': ['maestría','posgrado','programa','carrera','especialidad','man','mba','licenciatura','oferta']
+  };
+
+  convIds.forEach(function(pid){
+    var msgs=convMap[pid].sort(function(a,b){return new Date(a.DATE)-new Date(b.DATE);});
+    var dispMsgs=msgs.filter(function(m){return m.DISPOSITIONCODE&&m.DISPOSITIONCODE.trim();});
+    var priorityMsg=dispMsgs.slice().reverse().find(function(m){return priorityCodes.indexOf(m.DISPOSITIONCODE.trim())>-1;});
+    var lastDisp=priorityMsg||dispMsgs[dispMsgs.length-1];
+    var dispCode=lastDisp?lastDisp.DISPOSITIONCODE.trim():'';
+    var cat='Otro';
+    if(codes.cierre.indexOf(dispCode)>-1) cat='Cierre x demora';
+    else if(allStopperCodes.indexOf(dispCode)>-1){
+      cat='Stopper';
+      Object.entries(codes.stoppers).forEach(function(e){if(e[1].indexOf(dispCode)>-1){stopperCatCounts[e[0]]=(stopperCatCounts[e[0]]||0)+1;stopperCodeCounts[dispCode]=(stopperCodeCounts[dispCode]||0)+1;}});
+    } else if(codes.conversions.indexOf(dispCode)>-1) cat='Conversión';
+
+    effortByCategory[cat]+=msgs.filter(function(m){return m.AGENT&&m.AGENT.trim()!=='';}).length;
+    convsByCategory[cat]++;
+    var pMsgs=msgs.filter(function(m){return !m.AGENT||m.AGENT.trim()==='';});
+    var aMsgs=msgs.filter(function(m){return m.AGENT&&m.AGENT.trim()!=='';});
+    if(!pMsgs.length){noProspect++;}
+    else if(!aMsgs.length){noAgent++;}
+    else {
+      var fp=new Date(pMsgs[0].DATE),fa=new Date(aMsgs[0].DATE);
+      if(!isNaN(fp)&&!isNaN(fa)){var d=(fa-fp)/60000;if(d<0)botFirst++;else if(d<1440){measurable++;respTimes[cat].push(d);}}
+    }
+    msgs.forEach(function(row,idx){
+      var origin=(row.ORIGIN||'').trim();
+      var isProspect=origin==='Contact'&&(!row.AGENT||row.AGENT.trim()==='');
+      if(!isProspect)return;
+      var pt=new Date(row.DATE);if(isNaN(pt))return;
+      var wk=getWeekKey(pt);
+      for(var j=idx+1;j<msgs.length;j++){
+        var m=msgs[j],o=(m.ORIGIN||'').trim();
+        if(o==='Bot'){var t=new Date(m.DATE);if(!isNaN(t)){var d2=(t-pt)/1000;if(d2>0&&d2<3600){if(!weeklyBot[wk])weeklyBot[wk]=[];weeklyBot[wk].push(d2);if(!weeklyBotHour[pt.getHours()])weeklyBotHour[pt.getHours()]=[];weeklyBotHour[pt.getHours()].push(d2);}}break;}
+        if(o==='Agent'||(o==='Contact'&&m.AGENT&&m.AGENT.trim()!==''))break;
+      }
+      for(var j2=idx+1;j2<msgs.length;j2++){
+        var m2=msgs[j2],o2=(m2.ORIGIN||'').trim();
+        var isA=o2==='Agent'||(o2==='Contact'&&m2.AGENT&&m2.AGENT.trim()!=='');
+        if(isA){var t2=new Date(m2.DATE);if(!isNaN(t2)){var d3=(t2-pt)/1000;if(d3>0&&d3<86400){if(!weeklyAgent[wk])weeklyAgent[wk]=[];weeklyAgent[wk].push(d3);if(!weeklyAgentHour[pt.getHours()])weeklyAgentHour[pt.getHours()]=[];weeklyAgentHour[pt.getHours()].push(d3);}}break;}
+      }
+    });
+  });
+
+  // ── REPETICIÓN BOT→ASESOR ────────────────────────────────────────────────
+  var repResults = { total: 0, withBot: 0, withAgent: 0, repeated: 0, byTema: {} };
+  Object.keys(TEMAS).forEach(function(t){ repResults.byTema[t]={botCovered:0,agentRepeated:0}; });
+
+  convIds.forEach(function(pid){
+    var msgs = convMap[pid].sort(function(a,b){return new Date(a.DATE)-new Date(b.DATE);});
+    var botMsgs = msgs.filter(function(m){return (m.ORIGIN||'').trim()==='Bot';});
+    var agentMsgs2 = msgs.filter(function(m){
+      var o=(m.ORIGIN||'').trim();
+      return o==='Agent'||(o==='Contact'&&m.AGENT&&m.AGENT.trim()!=='');
+    });
+    if(!botMsgs.length||!agentMsgs2.length) return;
+    repResults.total++;
+    repResults.withBot++;
+    repResults.withAgent++;
+
+    var botText = botMsgs.map(function(m){return (m.TEXT||'').toLowerCase();}).join(' ');
+    var agentText = agentMsgs2.map(function(m){return (m.TEXT||'').toLowerCase();}).join(' ');
+    var convRepeated = false;
+
+    Object.entries(TEMAS).forEach(function(e){
+      var tema=e[0], kws=e[1];
+      var botHit = kws.some(function(k){return botText.indexOf(k)>-1;});
+      var agentHit = kws.some(function(k){return agentText.indexOf(k)>-1;});
+      if(botHit) repResults.byTema[tema].botCovered++;
+      if(botHit&&agentHit){ repResults.byTema[tema].agentRepeated++; convRepeated=true; }
+    });
+    if(convRepeated) repResults.repeated++;
+  });
+
+  var totalStoppers=Object.values(stopperCatCounts).reduce(function(a,b){return a+b;},0);
+  var totalCierre=convsByCategory['Cierre x demora'];
+  var totalAgentMsgs=Object.values(effortByCategory).reduce(function(a,b){return a+b;},0);
+  var allRT=Object.values(respTimes).reduce(function(a,b){return a.concat(b);},[]);
+  var pct1=allRT.length?(allRT.filter(function(t){return t<1;}).length/allRT.length*100).toFixed(1):0;
+  var pct5=allRT.length?(allRT.filter(function(t){return t<5;}).length/allRT.length*100).toFixed(1):0;
+  var pct30=allRT.length?(allRT.filter(function(t){return t>30;}).length/allRT.length*100).toFixed(1):0;
+
+  document.getElementById('loading-bar').style.width='100%';
+  setTimeout(function(){
+    document.getElementById('loading-screen').style.display='none';
+    document.getElementById('dashboard').style.display='block';
+    var ds=new Date().toLocaleDateString('es-MX');
+    var sub=fmt(totalConvs)+' conversaciones · '+fmt(totalMsgs)+' msgs únicos · '+ds;
+    document.getElementById('sidebar-brand').textContent='PG '+(brand!=='OTRA'?brand:'Analytics');
+    document.getElementById('sidebar-file-tag').textContent=filename.replace('.csv','').substring(0,22);
+    document.getElementById('sidebar-filename').textContent=filename;
+    ['sub-stoppers','sub-esfuerzo','sub-tiempos'].forEach(function(id){document.getElementById(id).textContent=sub;});
+
+    var topCat=totalStoppers>0?Object.entries(stopperCatCounts).sort(function(a,b){return b[1]-a[1];})[0]:null;
+    document.getElementById('metrics-stoppers').innerHTML=
+      mc('o1','Conversaciones únicas',fmt(totalConvs),fmt(totalMsgs)+' mensajes únicos')+
+      mc('o2','Stoppers decisionales',fmt(totalStoppers),'decisión activa de no continuar')+
+      mc('o1','Cierre x demora',fmt(totalCierre),'problema operativo')+
+      mc('o3','Principal stopper',topCat?pct(topCat[1],totalStoppers)+'%':'—',topCat?topCat[0]:'sin datos');
+    document.getElementById('alert-demora').innerHTML='<div style="font-size:18px;flex-shrink:0;margin-top:1px;">⚠</div><div class="alert-text">Los <strong>'+fmt(totalCierre)+' cierres por demora</strong> ('+pct(totalCierre,totalConvs)+'% del total) son problema operativo — no son una objeción del prospecto.</div>';
+
+    var sc=Object.entries(stopperCatCounts).sort(function(a,b){return b[1]-a[1];}),mx=sc[0]?sc[0][1]:1;
+    document.getElementById('stoppers-bars').innerHTML=(function(){
+    var CAT_DESC={'Precio / Economía':'No cont x precio · Incierto economía · Nix precio pago inicial','Competencia':'No cont x evalúa otra privada · Incierto competencia','Logística':'No cont x ubicación campus · No cont x horarios · No cont x falta tiempo · Incierto tiempo','Perfil':'No cont x rango edad o perfil · Consulta padre o tutor','Oferta académica':'No cont x no hay carrera · Nix no existe programa','Operativos':'Nix espera kardex · Nix espera equivalencia · Nix atención no adecuada · No cont x molestia x insistencia · Spam · Datos falsos · Llamada rechazada','Perfil / Decisor':'No es el decisor · Consultar padres o tutor · No válido ciclo vigente','Próximo ciclo':'Prospecto dos ciclos más','En seguimiento':'Enviar info x mail · Programar llamada'};
+    return sc.map(function(e){var cat=e[0],n=e[1];var desc=CAT_DESC[cat]||'';var tip=desc?'<span class="tooltip-icon">ⓘ</span><div class="tooltip-box">'+desc+'</div>':'';return '<div class="cat-bar"><div class="cat-bar-header"><span class="cat-name tooltip-wrap" style="color:'+(CAT_COLORS[cat]||'#888')+';">'+cat+tip+'</span><span class="cat-meta">'+fmt(n)+' · '+pct(n,totalStoppers)+'%</span></div><div class="track"><div class="fill" style="width:'+pct(n,mx)+'%;background:'+(CAT_COLORS[cat]||'#888')+';"></div></div></div>';}).join('');
+  })();
+    var sk=Object.entries(stopperCodeCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,8),mk=sk[0]?sk[0][1]:1;
+    document.getElementById('stoppers-detail').innerHTML=sk.map(function(e){var code=e[0],n=e[1];var col=CAT_COLORS[Object.entries(codes.stoppers).find(function(x){return x[1].indexOf(code)>-1;})?.[0]]||'#888';return '<div class="detail-row"><div class="dot" style="background:'+col+';"></div><div class="detail-label">'+code.toLowerCase()+'</div><div class="detail-n">'+fmt(n)+'</div><div class="detail-pct">'+pct(n,totalStoppers)+'%</div><div class="detail-track"><div class="detail-fill" style="width:'+pct(n,mk)+'%;background:'+col+';"></div></div></div>';}).join('');
+
+    var noAP=pct(noAgent,totalConvs);
+    document.getElementById('metrics-esfuerzo').innerHTML=
+      mc('o1','Responden <1 min',pct1+'%','de '+fmt(measurable)+' medibles')+
+      mc('o1','Responden <5 min',pct5+'%','velocidad primera respuesta')+
+      mc(parseFloat(pct30)>10?'o1':'gr','Responden >30 min',pct30+'%','riesgo de abandono')+
+      mc('o2','Msgs totales asesor',fmt(totalAgentMsgs),'en '+fmt(totalConvs)+' conversaciones');
+    document.getElementById('cov-grid').innerHTML=
+      covCard('#1dbd8a','rgba(29,189,138,0.2)','Medibles',fmt(measurable),pct(measurable,totalConvs)+'% · con agente y prospecto')+
+      covCard('var(--orange)','rgba(232,88,26,'+(noAgent/totalConvs>0.3?'0.5':'0.2')+')','Sin respuesta del agente',fmt(noAgent),noAP+'% · prospecto sin respuesta')+
+      covCard('var(--gray)','rgba(136,135,128,0.2)','Sin msg del prospecto',fmt(noProspect),pct(noProspect,totalConvs)+'% · outbound')+
+      covCard('#e8b84a','rgba(232,184,74,0.2)','Bot respondió primero',fmt(botFirst),pct(botFirst,totalConvs)+'% · trigger automático');
+    var cl=noAgent/totalConvs;
+    document.getElementById('cov-alert').innerHTML=cl>0.4?'<div style="margin-top:10px;padding:0.75rem 1rem;background:rgba(232,88,26,0.08);border-left:2px solid rgba(232,88,26,0.5);font-size:12px;color:rgba(240,242,247,0.7);line-height:1.6;"><strong style="color:var(--orange);">Alerta crítica:</strong> el '+noAP+'% llegó sin respuesta registrada.</div>':cl>0.15?'<div style="margin-top:10px;padding:0.75rem 1rem;background:rgba(232,184,74,0.06);border-left:2px solid rgba(232,184,74,0.3);font-size:12px;color:rgba(240,242,247,0.6);line-height:1.6;">El '+noAP+'% no recibió respuesta registrada.</div>':'';
+    // ── ANÁLISIS DE CIERRES POR DEMORA ─────────────────────────────────────────
+    (function(){
+      var cierreCodes = codes.cierre;
+      var demoraConvs = [];
+      Object.keys(convMap).forEach(function(pid){
+        var msgs = convMap[pid].sort(function(a,b){return new Date(a.DATE)-new Date(b.DATE);});
+        var disps = msgs.filter(function(m){return m.DISPOSITIONCODE&&m.DISPOSITIONCODE.trim();});
+        // Use same priority logic as main analysis
+        var allPriorityCodes = codes.conversions.concat(allStopperCodes).concat(cierreCodes).concat(codes.seguimiento||[]);
+        var priorityDisps = disps.filter(function(m){return allPriorityCodes.indexOf(m.DISPOSITIONCODE.trim())>-1;});
+        var lastCode = priorityDisps.length
+          ? priorityDisps[priorityDisps.length-1].DISPOSITIONCODE.trim()
+          : (disps.length?disps[disps.length-1].DISPOSITIONCODE.trim():'');
+        if(cierreCodes.indexOf(lastCode)===-1) return;
+
+        var pMsgs = msgs.filter(function(m){return !m.AGENT||m.AGENT.trim()==='';});
+        var aMsgs = msgs.filter(function(m){return m.AGENT&&m.AGENT.trim()!=='';});
+        var botMsgs = msgs.filter(function(m){return (m.ORIGIN||'').trim()==='Bot';});
+
+        var firstP = pMsgs.length?new Date(pMsgs[0].DATE):null;
+        var hour = firstP&&!isNaN(firstP)?firstP.getHours():null;
+        var days=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+        var weekday = firstP&&!isNaN(firstP)?days[firstP.getDay()]:null;
+
+        var botOk = botMsgs.length>0;
+        var agentOk = aMsgs.length>0;
+        var nProspect = pMsgs.length;
+
+        var reason;
+        if(!agentOk&&!botOk) reason='Sin atención (ni bot ni asesor)';
+        else if(!agentOk&&botOk) reason='Bot respondió, asesor no tomó el caso';
+        else if(nProspect===1) reason='Prospecto mandó 1 msg y desapareció';
+        else reason='Conversación iniciada, prospecto dejó de responder';
+
+        demoraConvs.push({hour:hour, weekday:weekday, reason:reason, botOk:botOk, agentOk:agentOk, nProspect:nProspect});
+      });
+
+      if(!demoraConvs.length){
+        document.getElementById('demora-detail').innerHTML='';
+        return;
+      }
+
+      // Reason counts
+      var reasons={};
+      demoraConvs.forEach(function(d){reasons[d.reason]=(reasons[d.reason]||0)+1;});
+      var reasonOrder=['Prospecto mandó 1 msg y desapareció','Conversación iniciada, prospecto dejó de responder','Bot respondió, asesor no tomó el caso','Sin atención (ni bot ni asesor)'];
+      var reasonColors={'Prospecto mandó 1 msg y desapareció':'var(--orange)','Conversación iniciada, prospecto dejó de responder':'var(--orange2)','Bot respondió, asesor no tomó el caso':'#e8b84a','Sin atención (ni bot ni asesor)':'#e8734a'};
+      var maxR = Math.max.apply(null,Object.values(reasons));
+
+      // Hour counts
+      var hours={};
+      demoraConvs.forEach(function(d){if(d.hour!==null)hours[d.hour]=(hours[d.hour]||0)+1;});
+      var hoursSorted = Object.entries(hours).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+
+      // Weekday counts
+      var dayOrder=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+      var days={};
+      demoraConvs.forEach(function(d){if(d.weekday)days[d.weekday]=(days[d.weekday]||0)+1;});
+      var maxDay = Math.max.apply(null,Object.values(days).concat([1]));
+
+      var total = demoraConvs.length;
+
+      // Calculate follow-up messages after prospect stops responding
+      var followupCounts = [];
+      Object.keys(convMap).forEach(function(pid){
+        var msgs = convMap[pid].sort(function(a,b){return new Date(a.DATE)-new Date(b.DATE);});
+        var disps = msgs.filter(function(m){return m.DISPOSITIONCODE&&m.DISPOSITIONCODE.trim();});
+        var allPrioCodes2 = codes.conversions.concat(allStopperCodes).concat(cierreCodes).concat(codes.seguimiento||[]);
+        var prioDisps2 = disps.filter(function(m){return allPrioCodes2.indexOf(m.DISPOSITIONCODE.trim())>-1;});
+        var lastCode2 = prioDisps2.length?prioDisps2[prioDisps2.length-1].DISPOSITIONCODE.trim():(disps.length?disps[disps.length-1].DISPOSITIONCODE.trim():'');
+        if(cierreCodes.indexOf(lastCode2)===-1) return;
+
+        var pMsgs2 = msgs.filter(function(m){return !m.AGENT||m.AGENT.trim()==='';});
+        var aMsgs2 = msgs.filter(function(m){return m.AGENT&&m.AGENT.trim()!=='';});
+        var lastPTime = pMsgs2.length?new Date(pMsgs2[pMsgs2.length-1].DATE):null;
+        if(!lastPTime||isNaN(lastPTime)) return;
+        var fuCount = aMsgs2.filter(function(m){return new Date(m.DATE)>lastPTime;}).length;
+        followupCounts.push(fuCount);
+      });
+
+      var avgFU = followupCounts.length?followupCounts.reduce(function(a,b){return a+b;},0)/followupCounts.length:0;
+      var medFU = followupCounts.length?(function(){var s=followupCounts.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;})():0;
+      var maxFU = followupCounts.length?Math.max.apply(null,followupCounts):0;
+      var totalFU = followupCounts.reduce(function(a,b){return a+b;},0);
+      var pct4plus = followupCounts.length?(followupCounts.filter(function(n){return n>=4;}).length/followupCounts.length*100).toFixed(0):0;
+
+      var html = '<p class="demora-section-label">¿Por qué se cierran por demora? — '+fmt(total)+' conversaciones</p>';
+      html += '<div class="demora-grid">';
+
+      // Reasons card
+      html += '<div class="card"><div class="card-title">Por razón de abandono</div>';
+      reasonOrder.forEach(function(r){
+        var n=reasons[r]||0; if(!n) return;
+        var p=pct(n,total), col=reasonColors[r]||'var(--gray)';
+        html+='<div style="margin-bottom:14px;">'
+          +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">'
+          +'<span style="font-size:12px;color:'+col+';font-weight:500;">'+r+'</span>'
+          +'<span style="font-family:var(--mono);font-size:11px;color:var(--muted);">'+fmt(n)+' · '+p+'%</span>'
+          +'</div>'
+          +'<div class="track"><div class="fill" style="width:'+pct(n,maxR)+'%;background:'+col+';"></div></div>'
+          +'</div>';
+      });
+      html += '</div>';
+
+      // Hour + weekday card
+      html += '<div class="card"><div class="card-title">¿Cuándo llegan y desaparecen?</div>';
+      html += '<p style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px;">Top horas</p>';
+      hoursSorted.forEach(function(e){
+        var h=e[0],n=e[1],p=pct(n,total);
+        var label=parseInt(h)<6||parseInt(h)>=22?'🌙':'☀️';
+        html+='<div class="detail-row"><div class="detail-label">'+label+' '+String(h).padStart(2,'0')+':00 h</div>'
+          +'<div class="detail-n">'+fmt(n)+'</div>'
+          +'<div class="detail-pct">'+p+'%</div>'
+          +'<div class="detail-track"><div class="detail-fill" style="width:'+pct(n,hoursSorted[0][1])+'%;background:var(--orange);"></div></div>'
+          +'</div>';
+      });
+      html += '<p style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:8px;margin-top:1rem;">Por día de la semana</p>';
+      dayOrder.forEach(function(d){
+        var n=days[d]||0; if(!n) return;
+        html+='<div class="detail-row"><div class="detail-label">'+d+'</div>'
+          +'<div class="detail-n">'+fmt(n)+'</div>'
+          +'<div class="detail-pct">'+pct(n,total)+'%</div>'
+          +'<div class="detail-track"><div class="detail-fill" style="width:'+pct(n,maxDay)+'%;background:var(--orange2);"></div></div>'
+          +'</div>';
+      });
+      html += '</div></div>';
+
+      // Follow-up insight card
+      html += '<div style="background:rgba(232,88,26,0.06);border:0.5px solid rgba(232,88,26,0.25);border-radius:12px;padding:1.25rem 1.5rem;margin-top:0;">'
+        +'<p style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:0.75rem;">📬 Follow-ups enviados después del silencio</p>'
+        +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1rem;">'
+        +'<div style="text-align:center;"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px;">Promedio</div><div style="font-size:24px;font-weight:700;color:var(--orange);">'+avgFU.toFixed(1)+'</div></div>'
+        +'<div style="text-align:center;"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px;">Mediana</div><div style="font-size:24px;font-weight:700;color:var(--orange2);">'+medFU.toFixed(0)+'</div></div>'
+        +'<div style="text-align:center;"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px;">Máximo</div><div style="font-size:24px;font-weight:700;color:#e8734a;">'+fmt(maxFU)+'</div></div>'
+        +'<div style="text-align:center;"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:4px;">Mandan 4+</div><div style="font-size:24px;font-weight:700;color:var(--orange);">'+pct4plus+'%</div></div>'
+        +'</div>'
+        +'<p style="font-size:13px;color:rgba(240,242,247,0.7);line-height:1.7;">El prospecto preguntó y dejó de responder — y el asesor le mandó en promedio <strong style="color:var(--orange);">'+avgFU.toFixed(0)+' mensajes más</strong> después del silencio. Con '+fmt(total)+' conversaciones así, son <strong style="color:var(--text);">~'+fmt(Math.round(avgFU*total))+' mensajes enviados al vacío</strong> en este periodo. Además del costo operativo, el exceso de follow-ups puede derivar en stoppers de <strong style="color:var(--orange2);">molestia por insistencia</strong>.</p>'
+        +'</div>';
+
+      document.getElementById('demora-detail').innerHTML=html;
+    })();
+
+    var eoAll=['Conversión','En seguimiento','Stopper','Cierre x demora','Otro'],ec={'Conversión':'var(--orange)','En seguimiento':'#1dbd8a','Stopper':'var(--orange2)','Cierre x demora':'#e8734a','Otro':'var(--gray)'};
+    var eo=eoAll.filter(function(cat){return effortByCategory[cat]>0;});
+    document.getElementById('effort-bars').innerHTML='<p style="font-size:12px;color:var(--muted);margin-bottom:1rem;">Mensajes enviados por asesores, por resultado.</p>'+eo.map(function(cat){var n=effortByCategory[cat],c=convsByCategory[cat],a=c>0?(n/c).toFixed(1):0,p=pct(n,totalAgentMsgs);return '<div style="margin-bottom:14px;"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;"><span style="font-size:13px;color:'+ec[cat]+';font-weight:600;">'+cat+'</span><span style="font-family:var(--mono);font-size:12px;color:var(--muted);">'+fmt(n)+' · '+p+'%</span></div><div class="track"><div class="fill" style="width:'+p+'%;background:'+ec[cat]+';"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px;">'+fmt(c)+' convs · '+a+' msgs avg</div></div>';}).join('');
+    document.getElementById('speed-detail').innerHTML='<p style="font-size:12px;color:var(--muted);margin-bottom:1.25rem;">% con primera respuesta &lt; 5 min.</p>'+eo.map(function(cat){var t=respTimes[cat],p5=t.length?(t.filter(function(x){return x<5;}).length/t.length*100).toFixed(1):'—';return '<div class="detail-row"><div class="dot" style="background:'+ec[cat]+';"></div><div class="detail-label">'+cat+'</div><div class="detail-n" style="font-size:15px;">'+p5+'%</div><div class="detail-track"><div class="detail-fill" style="width:'+(p5==='—'?0:p5)+'%;background:'+ec[cat]+';"></div></div></div>';}).join('');
+    document.getElementById('speed-insight').innerHTML='<div style="margin-top:1rem;padding:0.85rem 1rem;background:rgba(232,88,26,0.05);border-radius:8px;border:0.5px solid rgba(232,88,26,0.15);font-size:12px;color:rgba(240,242,247,0.65);line-height:1.6;">Si la velocidad es similar en todos los resultados, el problema no es la rapidez — es <strong style="color:var(--text);">a quién le dedicamos el tiempo</strong>.</div>';
+    var cp=pct(effortByCategory['Conversión'],totalAgentMsgs),dp=pct(effortByCategory['Cierre x demora'],totalAgentMsgs),sp=pct(effortByCategory['En seguimiento'],totalAgentMsgs);
+    document.getElementById('final-insight').style.cssText='border-radius:12px;padding:1.25rem 1.5rem;margin-top:16px;background:rgba(232,88,26,0.06);border:0.5px solid rgba(232,88,26,0.25);';
+    document.getElementById('final-insight').innerHTML='<p style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:0.5rem;">El hallazgo clave</p><p style="font-size:13px;color:rgba(240,242,247,0.75);line-height:1.7;">Solo el <strong style="color:#1dbd8a;">'+cp+'% del esfuerzo total</strong> va a conversaciones que convirtieron. El <strong style="color:var(--orange);">'+dp+'%</strong> ('+fmt(effortByCategory['Cierre x demora'])+' msgs) se fue a prospectos que nunca respondieron.'+(noAgent>0?' Además, <strong style="color:var(--orange);">'+fmt(noAgent)+' prospectos ('+noAP+'%)</strong> llegaron sin respuesta registrada.':'')+'</p>';
+
+    var allBT=Object.values(weeklyBot).reduce(function(a,b){return a.concat(b);},[]);
+    var allAT=Object.values(weeklyAgent).reduce(function(a,b){return a.concat(b);},[]);
+    var mBot=median(allBT),mAgt=median(allAT),avgB=mean(allBT),avgA=mean(allAT);
+    document.getElementById('metrics-tiempos').innerHTML=
+      mc('o1','Mediana Bot (seg)',allBT.length?mBot.toFixed(0):'—',allBT.length+' mediciones')+
+      mc('o2','Promedio Bot (seg)',allBT.length?avgB.toFixed(0):'—','bot → prospecto')+
+      mc('o3','Mediana Asesor (seg)',allAT.length?mAgt.toFixed(0):'—',allAT.length+' mediciones')+
+      mc('gr','Promedio Asesor (seg)',allAT.length?avgA.toFixed(0):'—','asesor → prospecto');
+    var weeks=[...new Set(Object.keys(weeklyBot).concat(Object.keys(weeklyAgent)))].sort();
+    var minN=Math.max(3,Math.floor(weeks.length*0.05));
+    var sw=weeks.filter(function(w){return ((weeklyBot[w]||[]).length+(weeklyAgent[w]||[]).length)>=minN;});
+    document.getElementById('weekly-table-wrap').innerHTML=sw.length===0
+      ?'<div style="padding:2rem;text-align:center;color:var(--muted);font-family:var(--mono);font-size:12px;">Requiere columna ORIGIN (Agent/Bot/Contact) en el CSV.</div>'
+      :'<table class="weekly-table"><thead><tr><th>Semana</th><th class="r">Med. Bot (s)</th><th class="r">Avg Bot (s)</th><th class="r">Mediciones</th><th class="r">Med. Asesor (s)</th><th class="r">Avg Asesor (s)</th><th class="r">Mediciones</th></tr></thead><tbody>'+sw.map(function(w){var bt=weeklyBot[w]||[],at=weeklyAgent[w]||[];var mb=bt.length?median(bt).toFixed(0):'—',ab=bt.length?mean(bt).toFixed(0):'—',ma=at.length?median(at).toFixed(0):'—',aa=at.length?mean(at).toFixed(0):'—';var bp=bt.length?(median(bt)<5?'pill-g':median(bt)<30?'pill-a':'pill-r'):'';var ap=at.length?(median(at)<60?'pill-g':median(at)<300?'pill-a':'pill-r'):'';return '<tr><td class="wk">'+formatWeek(w)+'</td><td class="r">'+(mb!=='—'?'<span class="pill '+bp+'">'+mb+'</span>':mb)+'</td><td class="r">'+ab+'</td><td class="r">'+bt.length+'</td><td class="r">'+(ma!=='—'?'<span class="pill '+ap+'">'+ma+'</span>':ma)+'</td><td class="r">'+aa+'</td><td class="r">'+at.length+'</td></tr>';}).join('')+'</tbody></table>';
+    // Context box
+    document.getElementById('tiempos-context').innerHTML='<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;display:grid;grid-template-columns:1fr 1fr;gap:1rem;">'
+      +'<div><p style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:0.5rem;">Bot</p>'
+      +'<p style="font-size:13px;color:rgba(240,242,247,0.7);line-height:1.6;">Mediana de <strong style="color:var(--orange);">'+(allBT.length?mBot.toFixed(0)+'s':'—')+'</strong> — prácticamente instantáneo y consistente todo el día.</p></div>'
+      +'<div><p style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:0.5rem;">Asesor</p>'
+      +'<p style="font-size:13px;color:rgba(240,242,247,0.7);line-height:1.6;">Mediana de <strong style="color:var(--orange2);">'+(allAT.length?mAgt.toFixed(0)+'s':'—')+'</strong>, pero promedio de <strong style="color:#e8734a;">'+(allAT.length?Math.round(avgA/60)+' min':'—')+'</strong>. La brecha indica outliers nocturnos que jalan el promedio.</p></div>'
+      +'</div>';
+
+    // Hourly table
+    var hourRows='';
+    for(var h=0;h<24;h++){
+      var hbt=weeklyBotHour[h]||[],hat=weeklyAgentHour[h]||[];
+      if(hbt.length+hat.length===0) continue;
+      var hmb=hbt.length?median(hbt).toFixed(0):'—';
+      var hab=hbt.length?mean(hbt).toFixed(0):'—';
+      var hma=hat.length?median(hat).toFixed(0):'—';
+      var haa=hat.length?Math.round(mean(hat)/60)+'m':'—';
+      var hn=hat.length;
+      var alertLevel=hat.length&&mean(hat)>1800?'rgba(232,88,26,0.08)':hat.length&&mean(hat)>600?'rgba(232,184,74,0.05)':'transparent';
+      var hLabel=(h<6||h>=22)?'<span style="font-size:10px;color:#e8b84a;font-family:var(--mono);margin-left:6px;">nocturno</span>':
+                 (h>=9&&h<=18)?'<span style="font-size:10px;color:#1dbd8a;font-family:var(--mono);margin-left:6px;">horario laboral</span>':'';
+      hourRows+='<tr style="background:'+alertLevel+';">'
+        +'<td class="wk">'+String(h).padStart(2,'0')+':00 h'+hLabel+'</td>'
+        +'<td class="r">'+(hbt.length?'<span class="pill pill-g">'+hmb+'s</span>':'—')+'</td>'
+        +'<td class="r">'+hab+(hbt.length?'s':'')+'</td>'
+        +'<td class="r">'+hbt.length+'</td>'
+        +'<td class="r">'+(hat.length?'<span class="pill '+(parseFloat(hma)<60?'pill-g':parseFloat(hma)<120?'pill-a':'pill-r')+'">'+hma+'s</span>':'—')+'</td>'
+        +'<td class="r">'+haa+'</td>'
+        +'<td class="r">'+hn+'</td>'
+        +'</tr>';
+    }
+    document.getElementById('hourly-table-wrap').innerHTML=hourRows
+      ?'<table class="weekly-table"><thead><tr><th>Hora</th><th class="r">Med. Bot</th><th class="r">Avg Bot</th><th class="r">Mediciones</th><th class="r">Med. Asesor</th><th class="r">Avg Asesor</th><th class="r">Mediciones</th></tr></thead><tbody>'+hourRows+'</tbody></table>'
+      :'<div style="padding:2rem;text-align:center;color:var(--muted);font-family:var(--mono);font-size:12px;">Requiere columna ORIGIN en el CSV.</div>';
+
+    document.getElementById('tiempos-insight').innerHTML='<div style="background:rgba(232,88,26,0.06);border:0.5px solid rgba(232,88,26,0.2);border-radius:12px;padding:1rem 1.25rem;font-size:13px;color:rgba(240,242,247,0.7);line-height:1.7;"><strong style="color:var(--orange);">Hallazgo clave:</strong> El bot es consistente a cualquier hora. Los promedios del asesor se disparan en horario nocturno (19h–23h) donde pueden superar los 30–60 minutos — señal de que no hay cobertura adecuada fuera del horario laboral.</div>';
+    // ── RENDER REPETICIÓN ────────────────────────────────────────────────────
+    document.getElementById('sub-repeticion').textContent = sub;
+    var repPct = repResults.total>0?pct(repResults.repeated,repResults.total):0;
+    document.getElementById('metrics-repeticion').innerHTML=
+      mc('o1','Convs con bot y asesor',fmt(repResults.total),'base analizable para repetición')+
+      mc('o2','Con repetición estimada',fmt(repResults.repeated),repPct+'% del total analizable')+
+      mc('o3','Sin repetición',fmt(repResults.total-repResults.repeated),pct(repResults.total-repResults.repeated,repResults.total)+'% — el asesor añadió valor')+
+      mc('gr','Confianza del análisis','~65%','estimación por palabras clave');
+
+    var tRows = Object.entries(repResults.byTema).sort(function(a,b){return b[1].agentRepeated-a[1].agentRepeated;});
+    var maxRep = tRows[0]?tRows[0][1].agentRepeated:1;
+    document.getElementById('repeticion-table-wrap').innerHTML='<table class="weekly-table"><thead><tr>'
+      +'<th>Tema</th><th class="r">Bot lo cubrió</th><th class="r">Asesor lo repitió</th><th class="r">% de repetición</th><th class="r" style="min-width:160px;">Frecuencia</th>'
+      +'</tr></thead><tbody>'
+      +tRows.map(function(e){
+        var tema=e[0],d=e[1];
+        var p2=d.botCovered>0?pct(d.agentRepeated,d.botCovered):'0.0';
+        var barW=maxRep>0?Math.round(d.agentRepeated/maxRep*100):0;
+        var pill=parseFloat(p2)>60?'pill-r':parseFloat(p2)>40?'pill-a':'pill-g';
+        return '<tr><td style="font-size:13px;font-weight:500;">'+tema+'</td>'
+          +'<td class="r">'+fmt(d.botCovered)+'</td>'
+          +'<td class="r">'+fmt(d.agentRepeated)+'</td>'
+          +'<td class="r"><span class="pill '+pill+'">'+p2+'%</span></td>'
+          +'<td class="r"><div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;"><div style="width:100px;height:4px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;"><div style="width:'+barW+'%;height:100%;background:var(--orange);border-radius:2px;"></div></div></div></td>'
+          +'</tr>';
+      }).join('')
+      +'</tbody></table>';
+
+    document.getElementById('repeticion-keywords').innerHTML='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
+      +Object.entries(TEMAS).map(function(e){
+        return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:0.85rem 1rem;">'
+          +'<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:0.4rem;">'+e[0]+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);font-family:var(--mono);">'+e[1].join(' · ')+'</div>'
+          +'</div>';
+      }).join('')
+      +'</div>';
+
+    document.getElementById('repeticion-insight').innerHTML='<div style="background:rgba(232,88,26,0.06);border:0.5px solid rgba(232,88,26,0.2);border-radius:12px;padding:1rem 1.25rem;font-size:13px;color:rgba(240,242,247,0.7);line-height:1.7;margin-top:1.5rem;">'
+      +'<strong style="color:var(--orange);">Interpretación:</strong> Un porcentaje alto de repetición en un tema significa que los asesores están cubriendo información que el bot ya entregó — tiempo que podría dedicarse a resolver dudas más específicas o avanzar hacia la inscripción. '
+      +'Para un análisis más preciso que detecte parafraseo y contexto real, se recomienda escalar a análisis semántico con IA.</div>';
+
+    // Calculate average followup for forecast
+    var __avgFollowup = (function(){
+      var fu = [];
+      Object.keys(convMap).forEach(function(pid){
+        var msgs = convMap[pid].sort(function(a,b){return new Date(a.DATE)-new Date(b.DATE);});
+        var disps = msgs.filter(function(m){return m.DISPOSITIONCODE&&m.DISPOSITIONCODE.trim();});
+        var allPrioCodes3 = codes.conversions.concat(Object.values(codes.stoppers).reduce(function(a,b){return a.concat(b);},[]) ).concat(codes.cierre).concat(codes.seguimiento||[]);
+        var prioDisps3 = disps.filter(function(m){return allPrioCodes3.indexOf(m.DISPOSITIONCODE.trim())>-1;});
+        var lastCode3 = prioDisps3.length?prioDisps3[prioDisps3.length-1].DISPOSITIONCODE.trim():(disps.length?disps[disps.length-1].DISPOSITIONCODE.trim():'');
+        if(codes.cierre.indexOf(lastCode3)===-1) return;
+        var pMsgs3=msgs.filter(function(m){return !m.AGENT||m.AGENT.trim()==='';});
+        var aMsgs3=msgs.filter(function(m){return m.AGENT&&m.AGENT.trim()!=='';});
+        var lastPT=pMsgs3.length?new Date(pMsgs3[pMsgs3.length-1].DATE):null;
+        if(!lastPT||isNaN(lastPT)) return;
+        fu.push(aMsgs3.filter(function(m){return new Date(m.DATE)>lastPT;}).length);
+      });
+      return fu.length?fu.reduce(function(a,b){return a+b;},0)/fu.length:25;
+    })();
+
+    buildForecastData(effortByCategory, totalAgentMsgs, noAgent, totalConvs, convsByCategory, __avgFollowup, stopperCatCounts, totalStoppers, parseFloat(pct5));
+    renderConclusions(stopperCatCounts, totalStoppers, totalConvs, totalCierre, effortByCategory, totalAgentMsgs, noAgent, convsByCategory);
+    renderEsfuerzoConclusions(effortByCategory, totalAgentMsgs, noAgent, totalConvs, measurable, parseFloat(pct5));
+    renderTiemposConclusions(allBT, allAT, weeklyBotHour, weeklyAgentHour, measurable, totalConvs, noAgent);
+    renderRepeticionConclusions(repResults);
+    renderYoYSection(codes);
+
+    // Show forecast button and store data
+    var fbw=document.getElementById('forecast-btn-wrap');if(fbw)fbw.style.display='block';
+
+    document.getElementById('footer').innerHTML='<span>Fuente: '+filename+' · '+fmt(totalConvs)+' conversaciones · '+fmt(totalAgentMsgs)+' msgs de asesor</span><span>Generado '+ds+' · PG Analytics</span>';
+
+    // ── STORE METRICS for Save & Reload ──────────────────────────────────
+    var drng = getDateRange(data);
+    var topCatEntry = totalStoppers>0 ? Object.entries(stopperCatCounts).sort(function(a,b){return b[1]-a[1];})[0] : null;
+    _lastMetrics = {
+      filename:           filename,
+      brand:              brand,
+      generatedDate:      ds,
+      periodStart:        drng ? drng.min.toISOString().substring(0,10) : null,
+      periodEnd:          drng ? drng.max.toISOString().substring(0,10) : null,
+      totalConvs:         totalConvs,
+      totalMsgs:          totalMsgs,
+      totalStoppers:      totalStoppers,
+      totalCierre:        totalCierre,
+      totalAgentMsgs:     totalAgentMsgs,
+      noAgent:            noAgent,
+      noProspect:         noProspect,
+      measurable:         measurable,
+      conversionRate:     parseFloat(pct(convsByCategory['Conversión']||0, totalConvs)),
+      pDemora:            parseFloat(pct(totalCierre, totalConvs)),
+      pct1resp:           parseFloat(pct1),
+      pct5resp:           parseFloat(pct5),
+      topStopper:         topCatEntry ? topCatEntry[0] : null,
+      topStopperCount:    topCatEntry ? topCatEntry[1] : 0,
+      topStopperPct:      topCatEntry ? parseFloat(pct(topCatEntry[1], totalStoppers)) : 0,
+      stopperCatCounts:   stopperCatCounts,
+      stopperCodeCounts:  stopperCodeCounts,
+      effortByCategory:   effortByCategory,
+      convsByCategory:    convsByCategory,
+      repResults:         repResults
+    };
+
+    // Reveal save button if a BL is selected
+    if (selectedBL) {
+      var sbtn = document.getElementById('save-btn');
+      if (sbtn) { sbtn.style.display=''; sbtn.textContent='💾 Guardar análisis'; sbtn.style.pointerEvents=''; sbtn.style.borderColor='rgba(29,189,138,0.3)'; sbtn.style.color='#1dbd8a'; }
+      var sbl = document.getElementById('sidebar-bl');
+      if (sbl) sbl.style.display = '';
+      var sbln = document.getElementById('sidebar-bl-name');
+      if (sbln) sbln.textContent = selectedBL;
+    }
+  },500);
+}
+
+function mc(cls,label,val,sub){return '<div class="mc '+cls+'"><div class="mc-label">'+label+'</div><div class="mc-val">'+val+'</div><div class="mc-sub">'+sub+'</div></div>';}
+function covCard(color,border,label,val,sub){return '<div class="cov-card" style="border-color:'+border+';"><div class="cov-label" style="color:'+color+';">'+label+'</div><div class="cov-val" style="color:'+color+';">'+val+'</div><div class="cov-sub">'+sub+'</div></div>';}
+function fmt(n){return Number(n).toLocaleString('es-MX');}
+function pct(a,b){return b>0?((a/b)*100).toFixed(1):'0.0';}
+function median(arr){if(!arr.length)return 0;var s=arr.slice().sort(function(a,b){return a-b;}),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+function mean(arr){return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:0;}
+function getWeekKey(date){var d=new Date(date),day=d.getDay(),diff=d.getDate()-day+(day===0?-6:1);var mon=new Date(d.setDate(diff));return mon.toISOString().substring(0,10);}
+function formatWeek(key){var d=new Date(key+'T12:00:00'),end=new Date(d);end.setDate(d.getDate()+6);var f=function(dt){return dt.toLocaleDateString('es-MX',{day:'numeric',month:'short'});};return f(d)+' – '+f(end)+' '+end.getFullYear();}
+// ── UPLOAD HANDLING ──────────────────────────────────────────────────────────
+var parsedCurrent = null, parsedPrev = null, filenameCurrent = '', filenamePrev = '';
+
+var dropZonePrev = document.getElementById('drop-zone-prev');
+var fileInputPrev = document.getElementById('file-input-prev');
+
+dropZonePrev.addEventListener('click', function(){fileInputPrev.click();});
+dropZonePrev.addEventListener('dragover', function(e){e.preventDefault();dropZonePrev.classList.add('drag-over');});
+dropZonePrev.addEventListener('dragleave', function(){dropZonePrev.classList.remove('drag-over');});
+dropZonePrev.addEventListener('drop', function(e){e.preventDefault();dropZonePrev.classList.remove('drag-over');parsePrevFile(e.dataTransfer.files[0]);});
+fileInputPrev.addEventListener('change', function(e){parsePrevFile(e.target.files[0]);});
+
+function parsePrevFile(file) {
+  if(!file||!file.name.endsWith('.csv')) return;
+  Papa.parse(file, {
+    header:true, delimiter:';', skipEmptyLines:true,
+    complete:function(results){
+      parsedPrev = results.data;
+      filenamePrev = file.name;
+      document.getElementById('file-label-prev').textContent = '✓ ' + file.name;
+      document.getElementById('drop-zone-prev').style.borderColor = 'var(--orange2)';
+    }
+  });
+}
+
+// Override handleFile to just parse and store
+// handleFile defined above
+
+function startAnalysis() {
+  if(!parsedCurrent) return;
+  showLoading();
+  setTimeout(function(){analyzeAndRender(parsedCurrent, filenameCurrent);}, 300);
+}
+
+// resetApp defined above
+
+// ── YOY ANALYSIS ─────────────────────────────────────────────────────────────
+function getDateRange(rows) {
+  var dates = rows.map(function(r){return new Date(r.DATE);}).filter(function(d){return !isNaN(d);});
+  if(!dates.length) return null;
+  var sorted = dates.sort(function(a,b){return a-b;});
+  return {min: sorted[0], max: sorted[sorted.length-1]};
+}
+
+function detectComparisonType(rows1, rows2) {
+  // rows1 = anterior/prev, rows2 = actual/current
+  var r1 = getDateRange(rows1), r2 = getDateRange(rows2);
+  if(!r1||!r2) return null;
+
+  var toMD = function(d){return d.getMonth()*100+d.getDate();};
+  var minMD1=toMD(r1.min), maxMD1=toMD(r1.max);
+  var minMD2=toMD(r2.min), maxMD2=toMD(r2.max);
+  var overlapStart=Math.max(minMD1,minMD2), overlapEnd=Math.min(maxMD1,maxMD2);
+  var overlapDays = overlapEnd - overlapStart;
+
+  // Check if same year period (YoY) — years differ but MD ranges overlap significantly
+  var year1 = r1.min.getFullYear(), year2 = r2.min.getFullYear();
+  var mdOverlapOk = overlapDays > 15; // at least 15 days of MD overlap
+
+  if(year1 !== year2 && mdOverlapOk) {
+    // YoY — filter both to comparable MD range
+    var ds=mdToStr(overlapStart)+' – '+mdToStr(overlapEnd);
+    return {type:'yoy', startMD:overlapStart, endMD:overlapEnd,
+            label1: ds+' '+r1.min.getFullYear(), label2: ds+' '+r2.min.getFullYear(),
+            dateStr: ds};
+  } else {
+    // Semestral / consecutive — use full range of each
+    var fmtRange = function(r){
+      var months=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      return months[r.min.getMonth()]+' '+r.min.getFullYear()+' – '+months[r.max.getMonth()]+' '+r.max.getFullYear();
+    };
+    return {type:'semestral', startMD:null, endMD:null,
+            label1: fmtRange(r1), label2: fmtRange(r2),
+            dateStr: null};
+  }
+}
+
+function getComparablePeriod(rows1, rows2) {
+  return detectComparisonType(rows1, rows2);
+}
+
+function filterByMD(rows, startMD, endMD) {
+  if(startMD===null) return rows; // semestral: use all rows
+  return rows.filter(function(r){
+    var d=new Date(r.DATE); if(isNaN(d)) return false;
+    var md=d.getMonth()*100+d.getDate();
+    return md>=startMD&&md<=endMD;
+  });
+}
+
+function mdToStr(md) {
+  var months=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var m=Math.floor(md/100), d=md%100;
+  return d+' '+months[m];
+}
+
+function analyzeForYoY(rows, codes) {
+  var seen=new Set();
+  var data=rows.filter(function(r){var k=r.PARENTID+'|'+r.DATE+'|'+r.TEXT+'|'+r.AGENT;if(seen.has(k))return false;seen.add(k);return true;});
+  var convMap={};
+  data.forEach(function(r){if(!r.PARENTID)return;if(!convMap[r.PARENTID])convMap[r.PARENTID]=[];convMap[r.PARENTID].push(r);});
+  var allStopperCodes=Object.values(codes.stoppers).reduce(function(a,b){return a.concat(b);},[]);
+  var priorityCodes=codes.conversions.concat(allStopperCodes).concat(codes.cierre).concat(codes.seguimiento||[]);
+  var cats={'Conversión':0,'En seguimiento':0,'Stopper':0,'Cierre x demora':0,'Otro':0};
+  var sc={}, effort={'Conversión':0,'En seguimiento':0,'Stopper':0,'Cierre x demora':0,'Otro':0};
+  Object.keys(codes.stoppers).forEach(function(k){sc[k]=0;});
+  var noAgent=0, total=0;
+
+  Object.keys(convMap).forEach(function(pid){
+    total++;
+    var msgs=convMap[pid].sort(function(a,b){return new Date(a.DATE)-new Date(b.DATE);});
+    var dispMsgs=msgs.filter(function(m){return m.DISPOSITIONCODE&&m.DISPOSITIONCODE.trim();});
+    var priorityMsg=dispMsgs.slice().reverse().find(function(m){return priorityCodes.indexOf(m.DISPOSITIONCODE.trim())>-1;});
+    var lastDisp=priorityMsg||dispMsgs[dispMsgs.length-1];
+    var dispCode=lastDisp?lastDisp.DISPOSITIONCODE.trim():'';
+    var cat='Otro';
+    if(codes.cierre.indexOf(dispCode)>-1) cat='Cierre x demora';
+    else if(allStopperCodes.indexOf(dispCode)>-1){
+      cat='Stopper';
+      Object.entries(codes.stoppers).forEach(function(e){if(e[1].indexOf(dispCode)>-1){sc[e[0]]=(sc[e[0]]||0)+1;}});
+    } else if(codes.conversions.indexOf(dispCode)>-1) cat='Conversión';
+    else if(codes.seguimiento&&codes.seguimiento.indexOf(dispCode)>-1) cat='En seguimiento';
+    cats[cat]++;
+    effort[cat]+=msgs.filter(function(m){return m.AGENT&&m.AGENT.trim()!=='';}).length;
+    var hasP=msgs.some(function(m){return !m.AGENT||m.AGENT.trim()==='';});
+    var hasA=msgs.some(function(m){return m.AGENT&&m.AGENT.trim()!=='';});
+    if(hasP&&!hasA) noAgent++;
+  });
+  var totalSt=Object.values(sc).reduce(function(a,b){return a+b;},0);
+  var totalAg=Object.values(effort).reduce(function(a,b){return a+b;},0);
+  return {total:total,cats:cats,sc:sc,totalSt:totalSt,effort:effort,totalAg:totalAg,noAgent:noAgent};
+}
+
+function renderYoY(r25, r26, comparison, fname25, fname26) {
+  var isYoY = comparison.type === 'yoy';
+  var subLabel = isYoY
+    ? 'Comparativa año a año · '+comparison.dateStr+' · '+fname25+' vs '+fname26
+    : 'Comparativa por periodos · '+comparison.label1+' vs '+comparison.label2;
+  document.getElementById('sub-yoy').textContent = subLabel;
+
+  var label1 = comparison.label1, label2 = comparison.label2;
+  var html='';
+
+  // Note
+  if(isYoY){
+    html+='<div style="background:rgba(74,158,232,0.06);border:0.5px solid rgba(74,158,232,0.2);border-radius:10px;padding:0.85rem 1.25rem;margin-bottom:1.5rem;display:flex;gap:10px;align-items:flex-start;font-size:13px;color:rgba(240,242,247,0.7);line-height:1.6;">'
+      +'<div style="font-size:18px;flex-shrink:0;">📅</div>'
+      +'<div>Periodo comparable seleccionado automáticamente: <strong style="color:var(--text);">'+comparison.dateStr+'</strong> — mismo rango de días en ambos años. Datos deduplicados en las dos bases.</div>'
+      +'</div>';
+  } else {
+    html+='<div style="background:rgba(232,184,74,0.06);border:0.5px solid rgba(232,184,74,0.25);border-radius:10px;padding:0.85rem 1.25rem;margin-bottom:1.5rem;display:flex;gap:10px;align-items:flex-start;font-size:13px;color:rgba(240,242,247,0.7);line-height:1.6;">'
+      +'<div style="font-size:18px;flex-shrink:0;">📊</div>'
+      +'<div>Las bases cubren <strong style="color:#e8b84a;">periodos distintos</strong> — se usa el total de cada base para la comparativa. Datos deduplicados en las dos bases.</div>'
+      +'</div>';
+  }
+
+  // Legend
+  html+='<div style="display:flex;gap:1.5rem;align-items:center;margin-bottom:1.5rem;">'
+    +'<div style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--muted);"><div style="width:10px;height:10px;border-radius:50%;background:#4a9ee8;"></div>'+label1+' — '+fmt(r25.total)+' conversaciones</div>'
+    +'<div style="display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;color:var(--muted);"><div style="width:10px;height:10px;border-radius:50%;background:var(--orange);"></div>'+label2+' — '+fmt(r26.total)+' conversaciones ('+(r25.total>0?(((r26.total-r25.total)/r25.total)*100).toFixed(0):'—')+'%)</div>'
+    +'</div>';
+
+  // Metrics
+  var p25conv=pct(r25.cats['Conversión'],r25.total),p26conv=pct(r26.cats['Conversión'],r26.total);
+  var p25dem=pct(r25.noAgent,r25.total),p26dem=pct(r26.noAgent,r26.total);
+  var p25st=pct(r25.cats['Stopper'],r25.total),p26st=pct(r26.cats['Stopper'],r26.total);
+  var p25cl=pct(r25.cats['Cierre x demora'],r25.total),p26cl=pct(r26.cats['Cierre x demora'],r26.total);
+
+  html+='<div class="metrics-grid">';
+  html+=yoyMc('Conversiones','#4a9ee8','var(--orange)',r25.cats['Conversión']+' · '+p25conv+'%',r26.cats['Conversión']+' · '+p26conv+'%',(parseFloat(p26conv)-parseFloat(p25conv)),false);
+  html+=yoyMc('Sin respuesta agente','#4a9ee8','var(--orange)',r25.noAgent+' · '+p25dem+'%',r26.noAgent+' · '+p26dem+'%',(parseFloat(p26dem)-parseFloat(p25dem)),true);
+  html+=yoyMc('Stoppers decisionales','#4a9ee8','var(--orange)',r25.cats['Stopper']+' · '+p25st+'%',r26.cats['Stopper']+' · '+p26st+'%',(parseFloat(p26st)-parseFloat(p25st)),true);
+  html+=yoyMc('Cierre x demora','#4a9ee8','var(--orange)',r25.cats['Cierre x demora']+' · '+p25cl+'%',r26.cats['Cierre x demora']+' · '+p26cl+'%',(parseFloat(p26cl)-parseFloat(p25cl)),true);
+  html+='</div>';
+
+  // Comparison bars - results
+  html+='<div class="grid2">';
+  html+='<div class="card"><div class="card-title">% de conversaciones por resultado</div>';
+  var cats=['Conversión','Stopper','Cierre x demora','Otro'];
+  cats.forEach(function(cat){
+    var p25=parseFloat(pct(r25.cats[cat],r25.total)),p26=parseFloat(pct(r26.cats[cat],r26.total));
+    html+=compBar(cat,p25,p26,Math.max(p25,p26,1));
+  });
+  html+='</div>';
+
+  // Effort bars
+  html+='<div class="card"><div class="card-title">Esfuerzo del asesor por resultado</div>';
+  cats.forEach(function(cat){
+    var p25=parseFloat(pct(r25.effort[cat],r25.totalAg)),p26=parseFloat(pct(r26.effort[cat],r26.totalAg));
+    html+=compBar(cat,p25,p26,Math.max(p25,p26,1));
+  });
+  html+='</div></div>';
+
+  // Stoppers table
+  html+='<p style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:1rem;margin-top:1.5rem;">Stoppers decisionales por categoría</p>';
+  html+='<table class="weekly-table"><thead><tr><th>Categoría</th><th class="r">Ant. (n)</th><th class="r">Ant. (%)</th><th class="r">Act. (n)</th><th class="r">Act. (%)</th><th class="r">Variación</th><th class="r">Tendencia</th></tr></thead><tbody>';
+  var stCats=Object.keys(r25.sc).sort(function(a,b){return (r26.sc[b]||0)-(r26.sc[a]||0);});
+  stCats.forEach(function(cat){
+    var n25=r25.sc[cat]||0,n26=r26.sc[cat]||0;
+    var pp25=r25.totalSt>0?(n25/r25.totalSt*100).toFixed(1):'0.0';
+    var pp26=r26.totalSt>0?(n26/r26.totalSt*100).toFixed(1):'0.0';
+    var delta=parseFloat(pp26)-parseFloat(pp25);
+    var pillCls=delta>3?'pill-down':delta<-3?'pill-up':'pill-neutral';
+    var pillLabel=(delta>0?'+':'')+delta.toFixed(1)+'pp '+(delta>3?'↑ subió':delta<-3?'↓ bajó':'→ estable');
+    html+='<tr><td style="font-weight:500;">'+cat+'</td><td class="r">'+n25+'</td><td class="r">'+pp25+'%</td><td class="r">'+n26+'</td><td class="r">'+pp26+'%</td><td class="r">'+(delta>0?'+':'')+delta.toFixed(1)+'pp</td><td class="r"><span class="pill '+pillCls+'">'+pillLabel+'</span></td></tr>';
+  });
+  html+='</tbody></table>';
+
+  // Insights
+  var convImproved=parseFloat(p26conv)>parseFloat(p25conv);
+  var demWorse=parseFloat(p26dem)>parseFloat(p25dem);
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:1.5rem;">';
+  html+='<div style="background:rgba(29,189,138,0.06);border:0.5px solid rgba(29,189,138,0.2);border-radius:12px;padding:1.25rem 1.5rem;">'
+    +'<p style="font-size:13px;font-weight:600;color:#1dbd8a;margin-bottom:0.5rem;">Lo que mejoró 🟢</p>'
+    +'<p style="font-size:13px;color:rgba(240,242,247,0.75);line-height:1.7;">'
+    +(convImproved?'La <strong>tasa de conversión subió</strong> de '+p25conv+'% a '+p26conv+'%. ':'')
+    +stCats.filter(function(c){return (parseFloat(pct(r26.sc[c]||0,r26.totalSt))-parseFloat(pct(r25.sc[c]||0,r25.totalSt)))<-3;}).map(function(c){return 'Stoppers de <strong>'+c+'</strong> bajaron.';}).join(' ')
+    +'</p></div>';
+  html+='<div style="background:rgba(232,88,26,0.06);border:0.5px solid rgba(232,88,26,0.25);border-radius:12px;padding:1.25rem 1.5rem;">'
+    +'<p style="font-size:13px;font-weight:600;color:var(--orange);margin-bottom:0.5rem;">Lo que se deterioró 🔴</p>'
+    +'<p style="font-size:13px;color:rgba(240,242,247,0.75);line-height:1.7;">'
+    +(demWorse?'Conversaciones <strong>sin respuesta del agente</strong> pasaron de '+p25dem+'% a '+p26dem+'%. ':'')
+    +stCats.filter(function(c){return (parseFloat(pct(r26.sc[c]||0,r26.totalSt))-parseFloat(pct(r25.sc[c]||0,r25.totalSt)))>3;}).map(function(c){return 'Stoppers de <strong>'+c+'</strong> subieron.';}).join(' ')
+    +'</p></div>';
+  html+='</div>';
+
+  document.getElementById('yoy-content').innerHTML=html;
+}
+
+function yoyMc(label,c25,c26,v25,v26,delta,inverseGood){
+  var good=inverseGood?delta<0:delta>0;
+  var pillCls=Math.abs(delta)<0.5?'pill-neutral':good?'pill-up':'pill-down';
+  var dLabel=(delta>0?'+':'')+delta.toFixed(1)+'pp '+(good?'↑ mejora':'↓ se deterioró');
+  return '<div class="mc" style="border-top:2px solid '+(good?'#1dbd8a':Math.abs(delta)<0.5?'var(--gray)':'var(--orange)')+';">'
+    +'<div class="mc-label">'+label+'</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;"><span style="font-family:var(--mono);font-size:10px;color:'+c25+';">ant.</span><span style="font-size:18px;font-weight:700;color:'+c25+';">'+v25+'</span></div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;"><span style="font-family:var(--mono);font-size:10px;color:'+c26+';">act.</span><span style="font-size:18px;font-weight:700;color:'+c26+';">'+v26+'</span></div>'
+    +'<span class="pill '+pillCls+'">'+dLabel+'</span>'
+    +'</div>';
+}
+
+function compBar(cat,p25,p26,maxVal){
+  var colors={'Conversión':'#1dbd8a','Stopper':'var(--orange2)','Cierre x demora':'#e8734a','Otro':'var(--gray)'};
+  var col=colors[cat]||'var(--orange)';
+  return '<div style="margin-bottom:1.25rem;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">'
+    +'<span style="font-size:13px;font-weight:600;color:'+col+';">'+cat+'</span>'
+    +'<div style="display:flex;gap:12px;font-family:var(--mono);font-size:11px;"><span style="color:#4a9ee8;">'+p25.toFixed(1)+'%</span><span style="color:var(--orange);">'+p26.toFixed(1)+'%</span></div>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:3px;">'
+    +'<div style="display:flex;align-items:center;gap:6px;"><span style="font-family:var(--mono);font-size:9px;color:#4a9ee8;width:28px;">ant.</span><div class="track"><div class="fill" style="width:'+(p25/maxVal*100).toFixed(1)+'%;background:#4a9ee8;"></div></div></div>'
+    +'<div style="display:flex;align-items:center;gap:6px;"><span style="font-family:var(--mono);font-size:9px;color:var(--orange);width:28px;">act.</span><div class="track"><div class="fill" style="width:'+(p26/maxVal*100).toFixed(1)+'%;background:var(--orange);"></div></div></div>'
+    +'</div></div>';
+}
+
+// ── RENDER YOY IN DASHBOARD ───────────────────────────────────────────────────
+function renderYoYSection(codes) {
+  if(!parsedPrev) {
+    document.getElementById('yoy-content').innerHTML=
+      '<div style="text-align:center;padding:3rem 2rem;">'
+      +'<div style="font-size:40px;margin-bottom:1rem;">📁</div>'
+      +'<div style="font-size:16px;font-weight:600;margin-bottom:0.5rem;">Sube tu CSV del año anterior</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-bottom:2rem;max-width:380px;margin-left:auto;margin-right:auto;line-height:1.6;">Para ver la comparativa YoY necesitas cargar la base del periodo anterior. El análisis calculará automáticamente el periodo comparable.</div>'
+      +'<div class="drop-zone" id="drop-zone-yoy" style="max-width:400px;margin:0 auto;padding:2rem;">'
+      +'<div class="drop-icon">📂</div>'
+      +'<div class="drop-text">Arrastra tu CSV del año anterior</div>'
+      +'<div class="drop-hint">o haz clic para seleccionar</div>'
+      +'<input type="file" id="file-input-yoy" accept=".csv">'
+      +'</div></div>';
+
+    // Bind events for inline upload
+    setTimeout(function(){
+      var dzYoy=document.getElementById('drop-zone-yoy');
+      var fiYoy=document.getElementById('file-input-yoy');
+      if(!dzYoy||!fiYoy) return;
+      dzYoy.addEventListener('click',function(){fiYoy.click();});
+      dzYoy.addEventListener('dragover',function(e){e.preventDefault();dzYoy.classList.add('drag-over');});
+      dzYoy.addEventListener('dragleave',function(){dzYoy.classList.remove('drag-over');});
+      dzYoy.addEventListener('drop',function(e){e.preventDefault();dzYoy.classList.remove('drag-over');parsePrevFileAndRefresh(e.dataTransfer.files[0],codes);});
+      fiYoy.addEventListener('change',function(e){parsePrevFileAndRefresh(e.target.files[0],codes);});
+    },100);
+    return;
+  }
+
+  var comparison=detectComparisonType(parsedPrev, parsedCurrent);
+  if(!comparison){
+    document.getElementById('yoy-content').innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-family:var(--mono);font-size:12px;">No se pudo determinar el tipo de comparativa entre las dos bases.</div>';
+    return;
+  }
+
+  var curr=filterByMD(parsedCurrent,comparison.startMD,comparison.endMD);
+  var prev=filterByMD(parsedPrev,comparison.startMD,comparison.endMD);
+  var r26=analyzeForYoY(curr,codes);
+  var r25=analyzeForYoY(prev,codes);
+  renderYoY(r25,r26,comparison,filenamePrev,filenameCurrent);
+  updateYoYNavLabel(comparison.type);
+}
+
+function parsePrevFileAndRefresh(file, codes) {
+  if(!file||!file.name.endsWith('.csv')) return;
+  Papa.parse(file,{
+    header:true,delimiter:';',skipEmptyLines:true,
+    complete:function(results){
+      parsedPrev=results.data; filenamePrev=file.name;
+      renderYoYSection(codes);
+    }
+  });
+}
+
+// ── CONCLUSIONS ENGINE ───────────────────────────────────────────────────────
+function conclusionItem(num, text, type) {
+  return '<div class="conclusion-item">'
+    +'<span class="conclusion-num '+type+'">'+num+'</span>'
+    +'<span>'+text+'</span>'
+    +'</div>';
+}
+
+function renderConclusions(sc, totalSt, totalConvs, totalCierre, effort, totalAgent, noAgent, cats) {
+  if(!totalSt) return;
+  // Sort categories
+  var sorted = Object.entries(sc).sort(function(a,b){return b[1]-a[1];});
+  var top1 = sorted[0]||['—',0], top2 = sorted[1]||['—',0];
+  var pTop1 = (top1[1]/totalSt*100).toFixed(1);
+  var pCierre = (totalCierre/totalConvs*100).toFixed(1);
+  var pNoAgent = (noAgent/totalConvs*100).toFixed(1);
+  var pConv = (cats['Conversión']/totalConvs*100).toFixed(1);
+
+  // Generate insights
+  var insights = [];
+  insights.push('<strong>'+top1[0]+'</strong> es el stopper dominante con <strong>'+pTop1+'%</strong> de los casos decisionales'
+    +(top2[1]>0?' — seguido de <strong>'+top2[0]+'</strong> ('+( top2[1]/totalSt*100).toFixed(1)+'%)':'')+'.');
+  insights.push('El <strong>'+pCierre+'%</strong> de las conversaciones se cerró por demora operativa — prospectos que no respondieron antes de recibir un argumentario completo.');
+  if(parseFloat(pNoAgent)>10){
+    insights.push('El <strong>'+pNoAgent+'%</strong> de los prospectos llegó a la plataforma y no recibió respuesta del asesor — un problema de cobertura que precede a cualquier stopper.');
+  } else {
+    insights.push('La tasa de conversión visible es <strong>'+pConv+'%</strong> — cada punto porcentual adicional representa un prospecto que avanzó más allá del primer contacto.');
+  }
+
+  // Generate actions
+  var actions = [];
+  if(top1[0].indexOf('Precio')>-1||top1[0].indexOf('Econom')>-1){
+    actions.push('Anticipar el tema de <strong>precio</strong> en el primer mensaje del asesor — incluir referencia a becas o esquemas de pago antes de que el prospecto lo perciba como barrera.');
+  } else if(top1[0].indexOf('Perfil')>-1){
+    actions.push('Revisar la <strong>segmentación de leads</strong> upstream — el stopper de perfil indica que están llegando prospectos que no califican, lo que se resuelve en la captación, no en la conversación.');
+  } else if(top1[0].indexOf('Oferta')>-1){
+    actions.push('Auditar la <strong>comunicación de portafolio</strong> en campañas — prospectos que buscan programas que no existen sugieren que los anuncios no especifican claramente la oferta disponible.');
+  } else {
+    actions.push('Diseñar argumentario específico para el stopper de <strong>'+top1[0]+'</strong> — el equipo de contact center necesita respuestas concretas para este caso.');
+  }
+  if(parseFloat(pCierre)>30){
+    actions.push('Implementar un <strong>protocolo de cierre de seguimiento</strong> — definir máximo de intentos de contacto (sugerido: 5) antes de tipificar como cierre por demora y liberar al asesor.');
+  } else {
+    actions.push('Reforzar la <strong>velocidad de primera respuesta</strong> en horario nocturno y fines de semana, donde los tiempos de espera se disparan y la probabilidad de abandono es mayor.');
+  }
+  if(parseFloat(pNoAgent)>10){
+    actions.push('Escalar la <strong>cobertura de atención</strong> — con '+pNoAgent+'% de prospectos sin respuesta, el primer problema es operativo, no de argumentario.');
+  } else {
+    actions.push('Usar los códigos de <strong>"Incierto"</strong> como base de reactivación — son prospectos que no dijeron no, solo tienen dudas, y son los más cercanos a convertir con un seguimiento bien diseñado.');
+  }
+
+  var html = '<div class="conclusions-wrap">'
+    +'<div class="conclusions-card">'
+    +'<div class="conclusions-title" style="color:#4a9ee8;">📌 3 conclusiones clave</div>'
+    +insights.map(function(t,i){return conclusionItem(i+1,t,'insight');}).join('')
+    +'</div>'
+    +'<div class="conclusions-card">'
+    +'<div class="conclusions-title" style="color:#1dbd8a;">🎯 3 acciones para mejorar</div>'
+    +actions.map(function(t,i){return conclusionItem(i+1,t,'action');}).join('')
+    +'</div>'
+    +'</div>';
+  document.getElementById('conclusions-stoppers').innerHTML = html;
+}
+
+function renderEsfuerzoConclusions(effort, totalAgent, noAgent, totalConvs, measurable, pct5resp) {
+  // Called after demora-detail is rendered
+  if(!totalAgent) return;
+  var pConvEffort = (effort['Conversión']/totalAgent*100).toFixed(1);
+  var pDemora = (effort['Cierre x demora']/totalAgent*100).toFixed(1);
+  var pSeg = effort['En seguimiento']?(effort['En seguimiento']/totalAgent*100).toFixed(1):'0';
+  var pNoAgent = (noAgent/totalConvs*100).toFixed(1);
+
+  var insights = [];
+  insights.push('Solo el <strong>'+pConvEffort+'%</strong> del esfuerzo total del asesor va a conversaciones que convirtieron — el resto se distribuye entre prospectos que no avanzaron.');
+  insights.push('El <strong>'+pDemora+'%</strong> de los mensajes del asesor se envían a prospectos que ya no responden — esfuerzo operativo sin retorno directo.');
+  insights.push(parseFloat(pct5resp)>85
+    ? 'La velocidad de primera respuesta es buena (<strong>'+pct5resp+'%</strong> en menos de 5 min) — el problema no es la rapidez, es la <strong>distribución del esfuerzo</strong>.'
+    : 'La velocidad de primera respuesta (<strong>'+pct5resp+'%</strong> en menos de 5 min) tiene margen de mejora — reducir el tiempo de primer contacto impacta directamente la tasa de conversión.');
+
+  var actions = [];
+  actions.push('Definir un <strong>límite de intentos</strong> por prospecto sin respuesta — redirigir ese esfuerzo hacia prospectos activos o en seguimiento puede mover la aguja de conversión.');
+  if(parseFloat(pSeg)>0){
+    actions.push('Los prospectos en <strong>"En seguimiento"</strong> ('+pSeg+'% del esfuerzo) son el segmento más recuperable — diseñar un flujo específico de nurturing para ellos.');
+  } else {
+    actions.push('Crear un segmento de <strong>reactivación</strong> para prospectos "Incierto" — tienen intención declarada y solo necesitan el argumento correcto en el momento correcto.');
+  }
+  actions.push(parseFloat(pNoAgent)>15
+    ? 'Resolver el problema de <strong>cobertura</strong> ('+pNoAgent+'% sin respuesta del agente) antes de optimizar el argumentario — la conversión no puede mejorar si el prospecto no recibe atención.'
+    : 'Implementar un <strong>dashboard de productividad por asesor</strong> para identificar quiénes están invirtiendo más tiempo en prospectos sin respuesta vs. prospectos activos.');
+  // Add follow-up insight as extra conclusion
+  insights.push('Los asesores continúan enviando mensajes <strong>después de que el prospecto deja de responder</strong> — el exceso de follow-ups no solo es esfuerzo perdido sino que puede generar stoppers de molestia por insistencia.');
+  actions.splice(1,0,'Definir un <strong>máximo de 3-5 intentos de contacto</strong> después del silencio del prospecto — pasado ese límite, mover a una secuencia de reactivación automática o cerrar el caso.');
+
+  var html = '<div class="conclusions-wrap">'
+    +'<div class="conclusions-card">'
+    +'<div class="conclusions-title" style="color:#4a9ee8;">📌 3 conclusiones clave</div>'
+    +insights.map(function(t,i){return conclusionItem(i+1,t,'insight');}).join('')
+    +'</div>'
+    +'<div class="conclusions-card">'
+    +'<div class="conclusions-title" style="color:#1dbd8a;">🎯 3 acciones para mejorar</div>'
+    +actions.map(function(t,i){return conclusionItem(i+1,t,'action');}).join('')
+    +'</div>'
+    +'</div>';
+  document.getElementById('conclusions-esfuerzo').innerHTML = html;
+}
+
+// ── EXPORT FUNCTIONS ─────────────────────────────────────────────────────────
+function exportPDF() {
+  // Show all sections temporarily for print
+  var sections = document.querySelectorAll('.section');
+  var previousActive = [];
+  sections.forEach(function(s){ previousActive.push(s.classList.contains('active')); s.classList.add('active'); });
+  window.print();
+  // Restore
+  sections.forEach(function(s,i){ if(!previousActive[i]) s.classList.remove('active'); });
+}
+
+function exportHTML() {
+  // Clone current document and inline all data
+  var html = document.documentElement.outerHTML;
+  var blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var fname = (filenameCurrent||'analizador_pg').replace('.csv','');
+  var date = new Date().toISOString().substring(0,10);
+  a.href = url;
+  a.download = 'PG_Analytics_'+fname+'_'+date+'.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Dashboard guardado como HTML ✓');
+}
+
+function shareLink() {
+  // Generate a shareable HTML data URL — encodes current dashboard state
+  var html = document.documentElement.outerHTML;
+  var blob = new Blob([html], {type:'text/html'});
+  var url = URL.createObjectURL(blob);
+  // Copy to clipboard
+  if(navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function(){
+      showToast('Enlace copiado al portapapeles ✓ (válido en esta sesión)');
+    }).catch(function(){
+      fallbackCopyToClipboard(url);
+    });
+  } else {
+    fallbackCopyToClipboard(url);
+  }
+}
+
+function fallbackCopyToClipboard(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); showToast('Enlace copiado ✓'); } 
+  catch(e) { showToast('No se pudo copiar — usa Ctrl+C'); }
+  document.body.removeChild(ta);
+}
+
+function showToast(msg) {
+  var existing = document.getElementById('toast-msg');
+  if(existing) existing.remove();
+  var toast = document.createElement('div');
+  toast.id = 'toast-msg';
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1c2030;border:0.5px solid rgba(255,255,255,0.12);color:#f0f2f7;font-family:DM Mono,monospace;font-size:12px;padding:10px 16px;border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.4);animation:fadeIn 0.2s ease;';
+  document.body.appendChild(toast);
+  setTimeout(function(){ if(toast.parentNode) toast.remove(); }, 3500);
+}
+
+function renderTiemposConclusions(allBT, allAT, hourBot, hourAgent, measurable, totalConvs, noAgent) {
+  if(!allBT.length&&!allAT.length) return;
+  var medB = allBT.length?median(allBT).toFixed(0):'—';
+  var medA = allAT.length?median(allAT).toFixed(0):'—';
+  var avgA = allAT.length?mean(allAT):0;
+  var ratio = allBT.length&&allAT.length?(mean(allAT)/mean(allBT)).toFixed(0):'—';
+  // Find worst hour for agent
+  var worstHour = -1, worstAvg = 0;
+  for(var h=0;h<24;h++){
+    var ht=hourAgent[h]||[];
+    if(ht.length>=3&&mean(ht)>worstAvg){worstAvg=mean(ht);worstHour=h;}
+  }
+
+  var insights = [];
+  insights.push('El bot responde en mediana de <strong>'+medB+' segundos</strong> — prácticamente instantáneo y consistente a cualquier hora del día.');
+  insights.push('El asesor tarda en mediana <strong>'+medA+' segundos</strong>, pero el promedio sube a <strong>'+Math.round(avgA/60)+' minutos</strong> por casos extremos fuera de horario laboral.');
+  insights.push(worstHour>=0
+    ? 'La hora de mayor demora del asesor es las <strong>'+String(worstHour).padStart(2,'0')+':00 h</strong> con promedio de <strong>'+Math.round(worstAvg/60)+' min</strong> — señal de cobertura insuficiente en ese horario.'
+    : 'La velocidad de respuesta es consistente durante el horario laboral — la variación principal ocurre en horario nocturno y fines de semana.');
+
+  var actions = [];
+  actions.push(worstHour>=18||worstHour<=6
+    ? 'Evaluar <strong>cobertura nocturna</strong> — un bot de primer contacto más robusto o un asesor de guardia en horas pico puede reducir el promedio significativamente.'
+    : 'Monitorear las <strong>horas con mayor demora</strong> semanalmente — un spike en el promedio del asesor es señal temprana de sobrecarga del equipo.');
+  actions.push('Usar la <strong>mediana como métrica oficial</strong> de tiempo de respuesta en reportes — el promedio se distorsiona por outliers y puede dar una imagen incorrecta del desempeño real.');
+  actions.push('Establecer un <strong>SLA de primera respuesta</strong> del asesor — sugerido: máximo 5 minutos en horario laboral, con alerta automática si se supera.');
+
+  var html='<div class="conclusions-wrap">'
+    +'<div class="conclusions-card"><div class="conclusions-title" style="color:#4a9ee8;">📌 3 conclusiones clave</div>'
+    +insights.map(function(t,i){return conclusionItem(i+1,t,'insight');}).join('')+'</div>'
+    +'<div class="conclusions-card"><div class="conclusions-title" style="color:#1dbd8a;">🎯 3 acciones para mejorar</div>'
+    +actions.map(function(t,i){return conclusionItem(i+1,t,'action');}).join('')+'</div>'
+    +'</div>';
+  document.getElementById('conclusions-tiempos').innerHTML=html;
+}
+
+function renderRepeticionConclusions(rep) {
+  if(!rep||!rep.total) return;
+  var pRep = (rep.repeated/rep.total*100).toFixed(1);
+  var topTema = Object.entries(rep.byTema).sort(function(a,b){return b[1].agentRepeated-a[1].agentRepeated;})[0];
+  var topNombre = topTema?topTema[0]:'—';
+  var topPct = topTema&&topTema[1].botCovered>0?(topTema[1].agentRepeated/topTema[1].botCovered*100).toFixed(1):'0';
+
+  var insights = [];
+  insights.push('En el <strong>'+pRep+'%</strong> de las conversaciones analizadas, el asesor cubrió al menos un tema que el bot ya había respondido — estimación basada en coincidencia de palabras clave.');
+  insights.push('El tema con mayor repetición estimada es <strong>'+topNombre+'</strong> con '+topPct+'% de repetición — los asesores retoman este tema aunque el bot ya lo haya cubierto.');
+  insights.push('Este análisis tiene una <strong>confianza aproximada del 65%</strong> — puede haber casos donde el asesor añade información adicional sobre el mismo tema, no solo repite.');
+
+  var actions = [];
+  actions.push('Revisar el <strong>script del bot</strong> para '+topNombre+' — si los asesores sienten necesidad de repetirlo, puede ser que la respuesta del bot no sea suficientemente clara o completa.');
+  actions.push('Capacitar al equipo para que el primer mensaje del asesor <strong>continúe desde donde dejó el bot</strong>, no reinicie la conversación — reduce tiempo y mejora la experiencia del prospecto.');
+  actions.push('Para mayor precisión, escalar a <strong>análisis semántico con IA</strong> que detecte parafraseo y contexto real — esto permitiría identificar cuándo la repetición añade valor y cuándo es redundante.');
+
+  var html='<div class="conclusions-wrap">'
+    +'<div class="conclusions-card"><div class="conclusions-title" style="color:#4a9ee8;">📌 3 conclusiones clave</div>'
+    +insights.map(function(t,i){return conclusionItem(i+1,t,'insight');}).join('')+'</div>'
+    +'<div class="conclusions-card"><div class="conclusions-title" style="color:#1dbd8a;">🎯 3 acciones para mejorar</div>'
+    +actions.map(function(t,i){return conclusionItem(i+1,t,'action');}).join('')+'</div>'
+    +'</div>';
+  document.getElementById('conclusions-repeticion').innerHTML=html;
+}
+
+// ── FORECAST BRIDGE ──────────────────────────────────────────────────────────
+var __forecastData = null;
+
+// Global forecast state
+
+// Helper to calculate projection curve
+function calcProj(bonus) {
+  var lastRealIdx = (function(){for(var i=realCurve.length-1;i>=0;i--){if(realCurve[i]!==null)return i;} return 10;})();
+  var baseRatio = STATE.aa>0?(STATE.real/STATE.aa):0.965;
+  var proj=[], acc=STATE.real;
+  for(var i=0;i<SEMS.length;i++){
+    if(i<=lastRealIdx){ proj.push(null); }
+    else {
+      var faa=FUTURE_AA_WEEKLY[i-lastRealIdx-1]||0;
+      acc += faa*baseRatio*(1+bonus);
+      proj.push(Math.round(acc));
+    }
+  }
+  return proj;
+}
+
+var realCurve = [1,2,5,7,90,260,374,520,698,889,939,null,null,null,null,null,null,null,null,null,null,null];
+
+function showForecast() {
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('forecast-screen').style.display='block';
+  // Initialize chart lazily on first open
+  if(!chart) {
+chart = new Chart(document.getElementById('curvaChart'), {
+    type:'line',
+    data:{
+      labels: SEMS,
+      datasets:[
+        {label:'Año anterior',data:AA_CURVE,borderColor:'#4a9ee8',backgroundColor:'rgba(74,158,232,0.06)',borderWidth:2,pointRadius:2,tension:0.3},
+        {label:'Real',data:realCurve,borderColor:'#E8581A',backgroundColor:'rgba(232,88,26,0.08)',borderWidth:2.5,pointRadius:3,tension:0.3},
+        {label:'Sin acciones',data:[],borderColor:'#888780',backgroundColor:'transparent',borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:0.3},
+        {label:'Moderado',data:[],borderColor:'#e8b84a',backgroundColor:'transparent',borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:0.3},
+        {label:'Optimista',data:[],borderColor:'#1dbd8a',backgroundColor:'rgba(29,189,138,0.04)',borderWidth:2,borderDash:[6,4],pointRadius:0,tension:0.3},
+        {label:'Meta',data:new Array(22).fill(STATE.metaTotal),borderColor:'rgba(232,88,26,0.2)',backgroundColor:'transparent',borderWidth:1,borderDash:[2,4],pointRadius:0,tension:0},
+        {label:'Maximum Performance',data:[],borderColor:'#4a9ee8',backgroundColor:'rgba(74,158,232,0.04)',borderWidth:2.5,borderDash:[8,3],pointRadius:3,pointBackgroundColor:'#4a9ee8',pointBorderColor:'#fff',pointBorderWidth:1,tension:0.3,hidden:false}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:300},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+fc_fmt(ctx.raw);}}}},
+      scales:{
+        x:{ticks:{font:{size:10},color:'#6b7280',maxRotation:45},grid:{color:'rgba(255,255,255,0.03)'}},
+        y:{ticks:{font:{size:10},color:'#6b7280',callback:function(v){return fc_fmt(v);}},grid:{color:'rgba(255,255,255,0.04)'}}
+      }
+    }
+  });
+  }
+  if(__forecastData) loadForecastData(__forecastData);
+  recalcAll();
+  updateSliders();
+  calcBeast();
+}
+
+function hideForecast() {
+  document.getElementById('forecast-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+}
+
+function loadForecastData(d) {
+  if(!d) return;
+  var slDem=document.getElementById('sl-dem');
+  var slFu=document.getElementById('sl-fu');
+  if(slDem) slDem.value=Math.min(30,Math.max(0,Math.round(((d.pDemora||0)-25)/5)*5));
+  if(slFu) slFu.value=(d.followupAvg||25)>10?5:25;
+  var noteEl=document.getElementById('forecast-preload-note');
+  if(noteEl){
+    noteEl.style.display='flex';
+    noteEl.innerHTML='<span style="font-size:18px;flex-shrink:0;">✅</span><div>Datos precargados desde el Analizador ('+(d.filename||'base')+'). Cierres x demora: <strong>'+d.pDemora+'%</strong> · Follow-ups: <strong>'+(d.followupAvg||25).toFixed(0)+'</strong> · Sin respuesta agente: <strong>'+d.pNoAgent+'%</strong>.</div>';
+  }
+  var titleEl=document.getElementById('forecast-title');
+  if(titleEl&&d.brand) titleEl.textContent='Forecast de Ciclo — Posgrados '+d.brand;
+  if(typeof updateSliders==='function') updateSliders();
+}
+
+function openForecast() { showForecast(); }
+
+function buildForecastData(effort, totalAgent, noAgent, totalConvs, convsCats, followupAvg, stopperCatCounts, totalStoppers, pct5resp) {
+  var pDemora = parseFloat(pct(effort['Cierre x demora'], totalAgent));
+  var pNoAgent = parseFloat(pct(noAgent, totalConvs));
+  var pConv = parseFloat(pct(convsCats['Conversión'], totalConvs));
+  var topStopper = Object.entries(stopperCatCounts).sort(function(a,b){return b[1]-a[1];})[0];
+
+  __forecastData = {
+    pDemora: pDemora,
+    pNoAgent: pNoAgent,
+    pConv: pConv,
+    followupAvg: followupAvg||25,
+    topStopper: topStopper?topStopper[0]:'Precio / Economía',
+    topStopperPct: topStopper&&totalStoppers>0?parseFloat(pct(topStopper[1],totalStoppers)):0,
+    pct5resp: pct5resp,
+    brand: selectedBrand,
+    filename: filenameCurrent,
+    date: new Date().toLocaleDateString('es-MX')
+  };
+}
+
+// Also update nav title dynamically
+function updateYoYNavLabel(type) {
+  var el = document.querySelector('#nav-yoy .nav-label');
+  if(el) el.textContent = 'Comparativa de periodos';
+}
+
+
+/* ===== FORECAST JS ===== */
+
+// ── CURVE DATA (C2 2026) ──────────────────────────────────────────────────────
+// Semanas del ciclo C2 — AA acumulado
+var SEMS = ['S08','S09','S10','S11','S12','S13','S14','S15','S16','S17','S18','S19','S20','S21','S22','S23','S24','S25','S26','S27','S28','S29'];
+var AA_CURVE = [6,11,16,135,258,397,513,656,753,906,1090,1285,1440,1616,1805,1940,2085,2228,2375,2559,2690,2702];
+var FUTURE_AA_WEEKLY = [195,155,176,189,135,145,143,147,184,131,12,0]; // weekly AA from sem 202619+
+var AA_REM = 1616; // AA inscritos restantes
+var AA_4W = 354;   // AA próximas 4 semanas
+var AA_TOT = 2702; // AA total ciclo
+
+// State
+var STATE = {
+  real: 976, aa: 1029, metaHoy: 1173, metaTotal: 3231, sem: '202618',
+  lcAA: 0.415, lcReal: 0.329,
+  laAA: 0.042, laReal: 0.039,
+  caAA: 0.834, caReal: 0.838,
+  aiAA: 0.436, aiReal: 0.437,
+  aiDelta: 0, lcDelta: 0, demDelta: 0, fuLimit: 25
+};
+
+// ── INIT CHART ────────────────────────────────────────────────────────────────
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function fc_fmt(n){ if(n===null||n===undefined||isNaN(n)) return '—'; return Math.round(n).toLocaleString('es-MX'); }
+function fmtPct(n){ return (n>=0?'+':'')+n.toFixed(1)+'%'; }
+function diff(a,b){ var d=a-b; return (d>=0?'+':'')+fc_fmt(d)+' ('+(d>=0?'+':'')+(d/b*100).toFixed(1)+'%)'; }
+function pctBar(a,b){ return Math.min(100,(a/b*100)).toFixed(1); }
+function pctStr(a,b){ return (a/b*100).toFixed(1)+'% de la meta'; }
+function fc_conclusionItem(num,text,cls){
+  return '<div class="conclusion-item"><span class="c-num '+cls+'">'+num+'</span><span>'+text+'</span></div>';
+}
+
+// ── RECALC FROM INPUTS ────────────────────────────────────────────────────────
+function recalcAll() {
+  // Read inputs
+  STATE.sem = document.getElementById('in-sem').value;
+  STATE.real = parseFloat(document.getElementById('in-real').value)||0;
+  STATE.aa = parseFloat(document.getElementById('in-aa').value)||0;
+  STATE.metaHoy = parseFloat(document.getElementById('in-meta-hoy').value)||0;
+  STATE.metaTotal = parseFloat(document.getElementById('in-meta-total').value)||0;
+  STATE.lcAA = parseFloat(document.getElementById('r-lc-aa').value)/100||0;
+  STATE.lcReal = parseFloat(document.getElementById('r-lc-real').value)/100||0;
+  STATE.laAA = parseFloat(document.getElementById('r-la-aa').value)/100||0;
+  STATE.laReal = parseFloat(document.getElementById('r-la-real').value)/100||0;
+  STATE.caAA = parseFloat(document.getElementById('r-ca-aa').value)/100||0;
+  STATE.caReal = parseFloat(document.getElementById('r-ca-real').value)/100||0;
+  STATE.aiAA = parseFloat(document.getElementById('r-ai-aa').value)/100||0;
+  STATE.aiReal = parseFloat(document.getElementById('r-ai-real').value)/100||0;
+
+  // Update rate vars
+  function showVar(id, aa, real) {
+    var v = aa>0?((real-aa)/aa*100):0;
+    var el = document.getElementById(id);
+    el.textContent = fmtPct(v) + (v>=0?' ↑':' ↓');
+    el.style.color = v>=0?'var(--green)':'var(--orange)';
+  }
+  showVar('var-lc', STATE.lcAA, STATE.lcReal);
+  showVar('var-la', STATE.laAA, STATE.laReal);
+  showVar('var-ca', STATE.caAA, STATE.caReal);
+  showVar('var-ai', STATE.aiAA, STATE.aiReal);
+
+  // Update header
+  document.getElementById('header-sub').textContent = 'Semana '+STATE.sem+' · '+fc_fmt(STATE.real)+' inscritos reales · Actualizado hoy';
+  document.getElementById('footer-left').textContent = 'Forecast Ciclo · PG UVM · Semana '+STATE.sem+' · PG Analytics';
+  document.getElementById('footer-date').textContent = new Date().toLocaleDateString('es-MX');
+
+  // Update current metrics
+  document.getElementById('d-real').textContent = fc_fmt(STATE.real);
+  document.getElementById('d-sem').textContent = 'sem. '+STATE.sem;
+  document.getElementById('d-aa').textContent = fc_fmt(STATE.aa);
+  var vsAA = STATE.aa>0?((STATE.real-STATE.aa)/STATE.aa*100):0;
+  document.getElementById('d-vsaa').innerHTML = '<span class="pill '+(vsAA>=0?'pill-up':'pill-down')+'">'+fmtPct(vsAA)+' vs AA</span>';
+  document.getElementById('d-meta-hoy').textContent = fc_fmt(STATE.metaHoy);
+  var vsMH = STATE.metaHoy>0?((STATE.real-STATE.metaHoy)/STATE.metaHoy*100):0;
+  document.getElementById('d-vsmeta-hoy').innerHTML = '<span class="pill '+(vsMH>=0?'pill-up':'pill-down')+'">'+fmtPct(vsMH)+' vs meta</span>';
+  document.getElementById('d-meta-total').textContent = fc_fmt(STATE.metaTotal);
+
+  // Update chart meta line
+  if(chart){chart.data.datasets[5].data=new Array(22).fill(STATE.metaTotal||3231);}
+
+  // Update real curve last point
+  var idx = (function(){for(var i=realCurve.length-1;i>=0;i--){if(realCurve[i]!==null)return i;} return -1;})();
+  realCurve[idx] = STATE.real;
+  if(chart){chart.data.datasets[1].data=realCurve;}
+
+  // Recalc scenarios and sliders
+  updateSliders();
+  updateConclusions();
+}
+
+// ── SLIDERS ───────────────────────────────────────────────────────────────────
+function updateSliders() {
+  var aiDelta = parseFloat(document.getElementById('sl-ai').value)/100;
+  var lcDelta = parseFloat(document.getElementById('sl-lc').value)/100;
+  var demDelta = parseFloat(document.getElementById('sl-dem').value)/100;
+  var fuLimit = parseFloat(document.getElementById('sl-fu').value);
+
+  STATE.aiDelta=aiDelta; STATE.lcDelta=lcDelta; STATE.demDelta=demDelta; STATE.fuLimit=fuLimit;
+
+  document.getElementById('val-ai').textContent = aiDelta>0?'+'+( aiDelta*100).toFixed(0)+'pp':'0pp';
+  document.getElementById('val-lc').textContent = lcDelta>0?'+'+( lcDelta*100).toFixed(0)+'pp':'0pp';
+  document.getElementById('val-dem').textContent = demDelta>0?'-'+(demDelta*100).toFixed(0)+'%':'0%';
+  document.getElementById('val-fu').textContent = fuLimit+' msgs';
+
+  // Chain text — connecting conversations to funnel to inscritos
+  var newAI = ((STATE.aiReal + aiDelta)*100).toFixed(1);
+  var newLC = ((STATE.lcReal + lcDelta)*100).toFixed(1);
+  var aiIns = Math.round(AA_REM * aiDelta / STATE.aiAA * STATE.aiReal * 1.5);
+  var lcIns = Math.round(AA_REM * lcDelta / STATE.lcAA * 0.6);
+  var demIns = Math.round(AA_REM * demDelta * 0.3);
+  var fuIns = Math.round((25 - fuLimit) / 25 * AA_REM * 0.08);
+
+  document.getElementById('chain-ai').innerHTML = aiDelta>0
+    ? 'Asiste→Inscrito sube de <strong>'+( STATE.aiReal*100).toFixed(1)+'%</strong> a <strong>'+newAI+'%</strong> → argumentario de cierre en cita · <strong>+'+aiIns+' inscritos proyectados</strong>'
+    : 'Acción: fortalecer argumentario de cierre en cita — capacitar asesores para convertir más asistencias';
+
+  document.getElementById('chain-lc').innerHTML = lcDelta>0
+    ? 'Leads→Contactados sube de <strong>'+(STATE.lcReal*100).toFixed(1)+'%</strong> a <strong>'+newLC+'%</strong> → protocolo de contacto + cobertura · <strong>+'+lcIns+' inscritos proyectados</strong>'
+    : 'Acción: reducir follow-ups al vacío · cobertura horaria — libera capacidad para prospectos activos';
+
+  document.getElementById('chain-dem').innerHTML = demDelta>0
+    ? 'Cierres x demora bajan del 40.9% → esfuerzo redirigido a prospectos activos · <strong>+'+demIns+' inscritos proyectados</strong>'
+    : 'Acción: máx. 5 follow-ups por prospecto sin respuesta — los 25 msgs al vacío son capacidad desperdiciada';
+
+  document.getElementById('chain-fu').innerHTML = fuLimit<25
+    ? 'Reducir de 25 a '+fuLimit+' msgs libera ~'+fc_fmt((25-fuLimit)*600)+' mensajes · capacidad redirigida a activos · <strong>+'+fuIns+' inscritos proyectados</strong>'
+    : 'Acción: establecer protocolo de máximo intentos — actualmente 96.5% de asesores manda 4+ msgs sin respuesta';
+
+  // Combined improvement factor
+  var aiImpact = STATE.aiAA>0?(aiDelta/STATE.aiAA):0;
+  var lcImpact = STATE.lcAA>0?(lcDelta/STATE.lcAA)*0.5:0;
+  var demImpact = demDelta*0.4;
+  var fuImpact = (25-fuLimit)/25*0.08;
+  var totalSlider = aiImpact + lcImpact + demImpact + fuImpact;
+
+  // Base ratio from real vs AA performance
+  var baseRatio = STATE.aa>0?(STATE.real/STATE.aa):1;
+
+  var sinTotal = Math.round(STATE.real + AA_REM * baseRatio);
+  var modTotal = Math.round(STATE.real + AA_REM * baseRatio * (1 + totalSlider*0.5));
+  // Snap optimista to beast target if sliders match beast config
+  var beastMT = STATE.metaTotal||3231;
+  var beastTarget = Math.round(beastMT*(1+BEAST_TARGET));
+  var rawOpt = STATE.real + AA_REM * baseRatio * (1 + totalSlider);
+  var optTotal = (Math.abs(rawOpt - beastTarget) < 50) ? beastTarget : Math.round(rawOpt);
+
+  var sin4w = Math.round(STATE.real + AA_4W * baseRatio);
+  var mod4w = Math.round(STATE.real + AA_4W * baseRatio * (1 + totalSlider*0.5));
+  var opt4w = Math.round(STATE.real + AA_4W * baseRatio * (1 + totalSlider));
+
+  var MT = STATE.metaTotal||3231;
+  var AAT = AA_TOT;
+
+  // Update scenario cards
+  [['sin',sinTotal],['mod',modTotal],['opt',optTotal]].forEach(function(sc){
+    var id=sc[0], tot=sc[1];
+    document.getElementById('sc-'+id).textContent = fc_fmt(tot);
+    document.getElementById(id+'-meta').textContent = diff(tot,MT);
+    document.getElementById(id+'-meta').style.color = tot>=MT?'var(--green)':'var(--orange)';
+    document.getElementById(id+'-aa').textContent = diff(tot,AAT);
+    document.getElementById(id+'-aa').style.color = tot>=AAT?'var(--green)':'var(--orange)';
+  });
+  document.getElementById('sin-4w').textContent = '+'+fc_fmt(sin4w-STATE.real);
+  document.getElementById('mod-4w').textContent = '+'+fc_fmt(mod4w-STATE.real);
+  document.getElementById('opt-4w').textContent = '+'+fc_fmt(opt4w-STATE.real);
+
+  [['sin',sinTotal,'var(--orange)'],['mod',modTotal,'var(--amber)'],['opt',optTotal,'var(--green)']].forEach(function(sc){
+    document.getElementById(sc[0]+'-bar').style.width = pctBar(sc[1],MT)+'%';
+    document.getElementById(sc[0]+'-bar').style.background = sc[2];
+    document.getElementById(sc[0]+'-pct').textContent = pctStr(sc[1],MT);
+  });
+
+  // Update chart projections
+  var lastRealIdx = (function(){for(var i=realCurve.length-1;i>=0;i--){if(realCurve[i]!==null)return i;} return -1;})();
+  var sinP=[],modP=[],optP=[];
+  var sA=STATE.real,mA=STATE.real,oA=STATE.real;
+  for(var i=0;i<SEMS.length;i++){
+    if(i<=lastRealIdx){sinP.push(null);modP.push(null);optP.push(null);}
+    else{
+      var faa=FUTURE_AA_WEEKLY[i-lastRealIdx-1]||0;
+      sA+=faa*baseRatio; mA+=faa*baseRatio*(1+totalSlider*0.5); oA+=faa*baseRatio*(1+totalSlider);
+      sinP.push(Math.round(sA)); modP.push(Math.round(mA)); optP.push(Math.round(oA));
+    }
+  }
+  if(chart){
+    chart.data.datasets[2].data = sinP;
+    chart.data.datasets[3].data = modP;
+    chart.data.datasets[4].data = optP;
+    chart.data.datasets[5].data = new Array(22).fill(STATE.metaTotal||3231);
+    // Keep beast curve data if it was set (don't overwrite)
+    chart.update();
+  }
+
+  updateConclusions();
+}
+
+// ── CONCLUSIONS ───────────────────────────────────────────────────────────────
+var BEAST_TARGET = 0.10; // default +10% vs meta
+
+function setBeastTarget(pct, btn) {
+  BEAST_TARGET = pct;
+  document.querySelectorAll('.beast-target-btn').forEach(function(b){b.classList.remove('active-beast');});
+  btn.classList.add('active-beast');
+  calcBeast();
+}
+
+function calcBeast() {
+  var MT = STATE.metaTotal||3231;
+  var baseRatio = STATE.aa>0?(STATE.real/STATE.aa):0.965;
+  var bTotal = Math.round(MT*(1+BEAST_TARGET));
+
+  // Reverse-engineer total impact needed
+  var totalNeeded = AA_REM*baseRatio > 0 ? (bTotal - STATE.real)/(AA_REM*baseRatio) - 1 : 0;
+  if(totalNeeded < 0) totalNeeded = 0;
+
+  // Distribute: dem=-30%, fu=3msgs fixed; lc recovers to AA; ai gets remainder
+  var demImpact = 0.30*0.4;
+  var fuImpact = (25-3)/25*0.08;
+  var lcD = Math.max(0, STATE.lcAA - STATE.lcReal);
+  var lcImpact = STATE.lcAA>0?(lcD/STATE.lcAA)*0.5:0;
+  var aiImpactNeeded = Math.max(0, totalNeeded - demImpact - fuImpact - lcImpact);
+  var aiD = aiImpactNeeded * STATE.aiAA;
+  var aiPP = Math.min(21, Math.round(aiD*100));
+  var lcPP = Math.min(15, Math.round(lcD*100));
+  __beastAiPP = aiD*100; __beastLcPP = lcD*100; // store exact values
+
+  // Update config display
+  var cfgEl = document.getElementById('beast-config');
+  if(cfgEl) {
+    cfgEl.innerHTML =
+      '<div style="margin-bottom:6px;color:rgba(240,242,247,0.7);">⚡ Asiste→Inscrito <strong style="color:#4a9ee8;font-family:var(--mono);">+'+aiPP+'pp</strong></div>'
+     +'<div style="margin-bottom:6px;color:rgba(240,242,247,0.7);">⚡ Leads→Contactados <strong style="color:#4a9ee8;font-family:var(--mono);">+'+lcPP+'pp</strong></div>'
+     +'<div style="margin-bottom:6px;color:rgba(240,242,247,0.7);">⚡ Cierres x demora <strong style="color:#4a9ee8;font-family:var(--mono);">-30%</strong></div>'
+     +'<div style="margin-bottom:10px;color:rgba(240,242,247,0.7);">⚡ Follow-ups <strong style="color:#4a9ee8;font-family:var(--mono);">máx 3 msgs</strong></div>'
+     +'<button onclick="applyBeastMode('+aiPP+','+lcPP+')" style="width:100%;background:#4a9ee8;color:white;border:none;padding:8px 12px;border-radius:6px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;">Aplicar en sliders →</button>';
+  }
+
+  // Beast card shows the fixed target
+  document.getElementById('sc-beast').textContent=fc_fmt(bTotal);
+  var bDiffMeta = bTotal-MT;
+  var bDiffAA = bTotal-AA_TOT;
+  document.getElementById('beast-meta').textContent=(bDiffMeta>=0?'+':'')+fc_fmt(bDiffMeta)+' ('+(bDiffMeta>=0?'+':'')+(bDiffMeta/MT*100).toFixed(1)+'%)';
+  document.getElementById('beast-meta').style.color=bTotal>=MT?'var(--green)':'#4a9ee8';
+  document.getElementById('beast-aa').textContent=(bDiffAA>=0?'+':'')+fc_fmt(bDiffAA)+' ('+(bDiffAA>=0?'+':'')+(bDiffAA/AA_TOT*100).toFixed(1)+'%)';
+  document.getElementById('beast-aa').style.color=bTotal>=AA_TOT?'var(--green)':'#4a9ee8';
+  document.getElementById('beast-4w').textContent='+'+fc_fmt(Math.round(AA_4W*baseRatio*(1+totalNeeded)));
+  document.getElementById('beast-bar').style.width=Math.min(100,(bTotal/MT*100)).toFixed(1)+'%';
+  document.getElementById('beast-pct').textContent=(bTotal/MT*100).toFixed(1)+'% de la meta';
+
+  // Beast curve only shown when applyBeastMode is clicked
+
+  // Update subtitle
+  var titleEl=document.querySelector('.sc-beast .sc-title');
+  if(titleEl) titleEl.textContent='Target: +'+(BEAST_TARGET*100).toFixed(0)+'% vs meta · Combinación óptima de sliders';
+}
+
+var __beastAiPP = 0, __beastLcPP = 0;
+
+function applyBeastMode(aiPP, lcPP) {
+  var ai = __beastAiPP || aiPP || 21;
+  var lc = __beastLcPP || lcPP || 4;
+  // Extend slider maxes dynamically if needed
+  var slAi = document.getElementById('sl-ai');
+  var slLc = document.getElementById('sl-lc');
+  if(slAi && Math.ceil(ai) > parseInt(slAi.max)) slAi.max = Math.ceil(ai) + 2;
+  if(slLc && Math.ceil(lc) > parseInt(slLc.max)) slLc.max = Math.ceil(lc) + 2;
+  if(slAi) slAi.value = Math.round(ai);
+  if(slLc) slLc.value = Math.round(lc);
+  document.getElementById('sl-dem').value = 30;
+  document.getElementById('sl-fu').value = 3;
+  // Show beast curve
+  if(chart) {
+    var baseRatio2 = STATE.aa>0?(STATE.real/STATE.aa):0.965;
+    var MT2 = STATE.metaTotal||3231;
+    var bTotal2 = Math.round(MT2*(1+BEAST_TARGET));
+    var totalNeeded2 = AA_REM*baseRatio2>0?(bTotal2-STATE.real)/(AA_REM*baseRatio2)-1:0;
+    if(totalNeeded2<0) totalNeeded2=0;
+    var lri=(function(){for(var i=realCurve.length-1;i>=0;i--){if(realCurve[i]!==null)return i;}return 10;})();
+    var bProj2=[], bAcc2=STATE.real;
+    for(var i=0;i<SEMS.length;i++){
+      if(i<=lri){bProj2.push(null);}
+      else{var faa2=FUTURE_AA_WEEKLY[i-lri-1]||0;bAcc2+=faa2*baseRatio2*(1+totalNeeded2);bProj2.push(Math.round(bAcc2));}
+    }
+    chart.data.datasets[6].data = bProj2;
+    chart.data.datasets[6].hidden = false;
+    chart.update();
+  }
+  updateSliders();
+  document.getElementById('sl-ai').scrollIntoView({behavior:'smooth',block:'center'});
+  showToast('🚀 Maximum Performance aplicado — curva azul activa');
+}
+
+function updateConclusions() {
+  var aiVar = STATE.aiAA>0?((STATE.aiReal-STATE.aiAA)/STATE.aiAA*100):0;
+  var lcVar = STATE.lcAA>0?((STATE.lcReal-STATE.lcAA)/STATE.lcAA*100):0;
+  var vsAA = STATE.aa>0?((STATE.real-STATE.aa)/STATE.aa*100):0;
+  var vsMeta = STATE.metaHoy>0?((STATE.real-STATE.metaHoy)/STATE.metaHoy*100):0;
+
+  var topBottleneck = Math.abs(aiVar) > Math.abs(lcVar) ? 'Asiste→Inscrito' : 'Leads→Contactados';
+  var topVar = Math.abs(aiVar) > Math.abs(lcVar) ? aiVar : lcVar;
+
+  var i1 = '<strong>'+topBottleneck+' es el cuello de botella principal</strong> ('+fmtPct(topVar)+' vs AA) — '+
+    (topBottleneck==='Asiste→Inscrito'
+      ? 'quienes asisten no están inscribiéndose al mismo ritmo. Resolver esto tiene el mayor impacto en la curva de inscritos.'
+      : 'se generan suficientes leads pero no se contactan proporcionalmente. Los cierres por demora y la cobertura horaria explican este gap.');
+  var i2 = 'Al ritmo actual el ciclo cerraría en <strong>~'+fc_fmt(Math.round(STATE.real + AA_REM*(STATE.aa>0?STATE.real/STATE.aa:1)))+' inscritos</strong> — '+(vsAA<0?fmtPct(vsAA)+' vs año anterior':'+'+fmtPct(vsAA)+' vs año anterior')+' y '+fmtPct(vsMeta)+' vs meta al día de hoy.';
+  var i3 = 'Los asesores envían en promedio <strong>25 mensajes después de que el prospecto deja de responder</strong> — en conversaciones tipificadas como cierre x demora. Ese esfuerzo puede redirigirse a prospectos activos.';
+
+  var a1 = topBottleneck==='Asiste→Inscrito'
+    ? '<strong>Fortalecer el cierre en cita</strong> — capacitar asesores en argumentario de inscripción. Mejorar Asiste→Inscrito de '+(STATE.aiReal*100).toFixed(1)+'% a '+(STATE.aiAA*100).toFixed(1)+'% (nivel AA) proyecta +'+fc_fmt(Math.round(AA_REM*(STATE.aiAA-STATE.aiReal)*0.8))+' inscritos adicionales al ciclo.'
+    : '<strong>Mejorar protocolo de contacto</strong> — reducir el gap de Leads→Contactados del '+(STATE.lcReal*100).toFixed(1)+'% al '+(STATE.lcAA*100).toFixed(1)+'% (nivel AA). Cobertura horaria y reducción de follow-ups al vacío son las palancas principales.';
+  var a2 = '<strong>Protocolo de máximo 5 follow-ups</strong> por prospecto sin respuesta — redirigir esos ~15,000 mensajes enviados al vacío hacia prospectos en seguimiento activo (ENVIAR INFO X MAIL) y prospectos con stopper de precio recuperables.';
+  var a3 = '<strong>Activar flujo de reactivación</strong> para prospectos "Incierto en economía" y "En seguimiento" — son leads con intención declarada que no dijeron no. Un contacto adicional personalizado en esta semana puede sumar inscritos antes del siguiente corte.';
+
+  document.getElementById('conclusions-insights').innerHTML =
+    fc_conclusionItem(1,i1,'c-blue')+fc_conclusionItem(2,i2,'c-blue')+fc_conclusionItem(3,i3,'c-blue');
+  document.getElementById('conclusions-actions').innerHTML =
+    fc_conclusionItem(1,a1,'c-green')+fc_conclusionItem(2,a2,'c-green')+fc_conclusionItem(3,a3,'c-green');
+}
+
+function resetSliders() {
+  ['sl-ai','sl-lc','sl-dem'].forEach(function(id){document.getElementById(id).value=0;});
+  document.getElementById('sl-fu').value=25;
+  if(chart){chart.data.datasets[6].data=[];chart.data.datasets[6].hidden=false;chart.update();}
+  updateSliders();
+}
+
+// ── TOGGLE ───────────────────────────────────────────────────────────────────
+function toggleSection(secId, btnId) {
+  var sec = document.getElementById('sec-'+secId);
+  var btn = document.getElementById(btnId);
+  var isHidden = sec.classList.contains('hidden');
+  sec.classList.toggle('hidden');
+  btn.classList.toggle('collapsed');
+  var sp=btn.querySelector('span:last-child');if(sp)sp.textContent = isHidden ? 'clic para ocultar' : 'clic para mostrar';
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.getElementById('footer-date').textContent = new Date().toLocaleDateString('es-MX');
+
+// Bind enter key on inputs
+document.querySelectorAll('.input-field').forEach(function(el){
+  el.addEventListener('keydown', function(e){if(e.key==='Enter') recalcAll();});
+  el.addEventListener('change', function(){ // ── LOAD FROM ANALIZADOR ─────────────────────────────────────────────────────
+(function() {
+  try {
+    var raw = sessionStorage.getItem('pg_forecast_data');
+    if(!raw) return;
+    var d = JSON.parse(raw);
+    sessionStorage.removeItem('pg_forecast_data');
+
+    // Show notification
+    var note = document.createElement('div');
+    note.style.cssText = 'background:rgba(29,189,138,0.08);border:0.5px solid rgba(29,189,138,0.25);border-radius:10px;padding:0.85rem 1.25rem;margin-bottom:1.5rem;font-size:13px;color:rgba(240,242,247,0.75);line-height:1.6;display:flex;gap:10px;align-items:flex-start;';
+    note.innerHTML = '<span style="font-size:18px;flex-shrink:0;">✅</span><div>Datos precargados desde el <strong style="color:#1dbd8a;">Analizador de Conversaciones</strong> ('+(d.filename||'base')+'). '
+      +'Los sliders reflejan: <strong>'+d.pDemora+'%</strong> cierres x demora · <strong>'+(d.followupAvg||25).toFixed(0)+' msgs</strong> follow-up promedio · <strong>'+d.pNoAgent+'%</strong> sin respuesta del agente. '
+      +'Completa los datos del ciclo y las tasas del funnel para activar el forecast.</div>';
+    var headerEl = document.querySelector('.header');
+    if(headerEl) headerEl.after(note);
+
+    // Pre-set sliders based on conversation data
+    var demSuggested = Math.min(30, Math.max(0, Math.round(((d.pDemora||0) - 25) / 5) * 5));
+    var slDem = document.getElementById('sl-dem');
+    if(slDem) slDem.value = demSuggested;
+
+    var fuSuggested = (d.followupAvg||25) > 10 ? 5 : ((d.followupAvg||25) > 5 ? 3 : 25);
+    var slFu = document.getElementById('sl-fu');
+    if(slFu) slFu.value = fuSuggested;
+
+    // Brand label
+    var h1El = document.querySelector('.h1');
+    if(d.brand && h1El) h1El.textContent = 'Forecast de Ciclo — Posgrados ' + d.brand;
+
+    // Update sub
+    var subEl = document.getElementById('header-sub');
+    if(subEl) subEl.textContent = 'Datos de conversaciones: '+(d.date||'')+(d.brand?' · '+d.brand:'')+' · Top stopper: '+(d.topStopper||'—')+' ('+(d.topStopperPct||0)+'%)';
+
+    updateSliders();
+  } catch(e) {}
+})();
+
+recalcAll(); });
+});
+
+// ── LOAD FROM ANALIZADOR ─────────────────────────────────────────────────────
+(function() {
+  try {
+    var raw = sessionStorage.getItem('pg_forecast_data');
+    if(!raw) return;
+    var d = JSON.parse(raw);
+    sessionStorage.removeItem('pg_forecast_data');
+
+    // Show notification
+    var note = document.createElement('div');
+    note.style.cssText = 'background:rgba(29,189,138,0.08);border:0.5px solid rgba(29,189,138,0.25);border-radius:10px;padding:0.85rem 1.25rem;margin-bottom:1.5rem;font-size:13px;color:rgba(240,242,247,0.75);line-height:1.6;display:flex;gap:10px;align-items:flex-start;';
+    note.innerHTML = '<span style="font-size:18px;flex-shrink:0;">✅</span><div>Datos precargados desde el <strong style="color:#1dbd8a;">Analizador de Conversaciones</strong> ('+(d.filename||'base')+'). '
+      +'Los sliders reflejan: <strong>'+d.pDemora+'%</strong> cierres x demora · <strong>'+(d.followupAvg||25).toFixed(0)+' msgs</strong> follow-up promedio · <strong>'+d.pNoAgent+'%</strong> sin respuesta del agente. '
+      +'Completa los datos del ciclo y las tasas del funnel para activar el forecast.</div>';
+    var headerEl = document.querySelector('.header');
+    if(headerEl) headerEl.after(note);
+
+    // Pre-set sliders based on conversation data
+    var demSuggested = Math.min(30, Math.max(0, Math.round(((d.pDemora||0) - 25) / 5) * 5));
+    var slDem = document.getElementById('sl-dem');
+    if(slDem) slDem.value = demSuggested;
+
+    var fuSuggested = (d.followupAvg||25) > 10 ? 5 : ((d.followupAvg||25) > 5 ? 3 : 25);
+    var slFu = document.getElementById('sl-fu');
+    if(slFu) slFu.value = fuSuggested;
+
+    // Brand label
+    var h1El = document.querySelector('.h1');
+    if(d.brand && h1El) h1El.textContent = 'Forecast de Ciclo — Posgrados ' + d.brand;
+
+    // Update sub
+    var subEl = document.getElementById('header-sub');
+    if(subEl) subEl.textContent = 'Datos de conversaciones: '+(d.date||'')+(d.brand?' · '+d.brand:'')+' · Top stopper: '+(d.topStopper||'—')+' ('+(d.topStopperPct||0)+'%)';
+
+    updateSliders();
+  } catch(e) {}
+})();
+
+recalcAll();
+
+</script>
+</body>
+</html>
